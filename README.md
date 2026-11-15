@@ -35,25 +35,25 @@ Things you can install, run and reuse.
 <table>
 <tr>
 <td width="50%" valign="top">
-<a href="https://github.com/96jjrevorio/video-clipper"><img src="docs/cards/clipper.png" alt="Video Clipper"></a>
-<b><a href="https://github.com/96jjrevorio/video-clipper">Video Clipper</a></b><br>
+<a href="https://github.com/julianreves/video-clipper"><img src="docs/cards/clipper.png" alt="Video Clipper"></a>
+<b><a href="https://github.com/julianreves/video-clipper">Video Clipper</a></b><br>
 Long interview in, 30–45 s captioned clips out, in 16:9 and 4:5. Cuts land inside real pauses; quotes are machine-checked against the speech.
 </td>
 <td width="50%" valign="top">
-<a href="https://github.com/96jjrevorio/ai-news-podcast-n8n"><img src="docs/cards/podcast.png" alt="AI News Podcast"></a>
-<b><a href="https://github.com/96jjrevorio/ai-news-podcast-n8n">AI News Podcast</a></b><br>
+<a href="https://github.com/julianreves/ai-news-podcast-n8n"><img src="docs/cards/podcast.png" alt="AI News Podcast"></a>
+<b><a href="https://github.com/julianreves/ai-news-podcast-n8n">AI News Podcast</a></b><br>
 ~35 RSS feeds become a daily audio briefing (editorial target: about 18 minutes): LLM selection, analysis and script, local TTS, delivered on Telegram, with cost tracking and failure alerts.
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
-<a href="https://github.com/96jjrevorio/personal-voice-crm"><img src="docs/cards/crm.png" alt="Personal Voice CRM"></a>
-<b><a href="https://github.com/96jjrevorio/personal-voice-crm">Personal Voice CRM</a></b><br>
+<a href="https://github.com/julianreves/personal-voice-crm"><img src="docs/cards/crm.png" alt="Personal Voice CRM"></a>
+<b><a href="https://github.com/julianreves/personal-voice-crm">Personal Voice CRM</a></b><br>
 Speak a contact into Telegram; get a structured row in Google Sheets. Design reviewed before building, with the bugs found in the first spec documented.
 </td>
 <td width="50%" valign="top">
-<a href="https://github.com/96jjrevorio/presentations-creator"><img src="docs/cards/decks.png" alt="Presentations Creator"></a>
-<b><a href="https://github.com/96jjrevorio/presentations-creator">Presentations Creator</a></b><br>
+<a href="https://github.com/julianreves/presentations-creator"><img src="docs/cards/decks.png" alt="Presentations Creator"></a>
+<b><a href="https://github.com/julianreves/presentations-creator">Presentations Creator</a></b><br>
 A written design system, process and QA checklist for single-file HTML decks, with two reference decks you can open and click through.
 </td>
 </tr>
@@ -78,10 +78,10 @@ Case study of a live digital gift registry and its guest-management Planner: pro
 
 | Project | Stack | Status | When |
 |---|---|---|---|
-| [Video Clipper](https://github.com/96jjrevorio/video-clipper) | Python, ffmpeg, Whisper, Pillow | Built and used; macOS only | Nov 2026 |
-| [AI News Podcast](https://github.com/96jjrevorio/ai-news-podcast-n8n) | n8n, DeepSeek, Kokoro TTS, Telegram | Implemented; hardening ongoing | Nov 2026 |
-| [Personal Voice CRM](https://github.com/96jjrevorio/personal-voice-crm) | n8n, OpenAI, Telegram, Google Sheets | Slice 1 built; the rest is designed | Jul 2026 |
-| [Presentations Creator](https://github.com/96jjrevorio/presentations-creator) | HTML, CSS, JS, SVG | Playbook and two decks; no template yet | Sep 2026 |
+| [Video Clipper](https://github.com/julianreves/video-clipper) | Python, ffmpeg, Whisper, Pillow | Built and used; macOS only | Nov 2026 |
+| [AI News Podcast](https://github.com/julianreves/ai-news-podcast-n8n) | n8n, DeepSeek, Kokoro TTS, Telegram | Implemented; hardening ongoing | Nov 2026 |
+| [Personal Voice CRM](https://github.com/julianreves/personal-voice-crm) | n8n, OpenAI, Telegram, Google Sheets | Slice 1 built; the rest is designed | Jul 2026 |
+| [Presentations Creator](https://github.com/julianreves/presentations-creator) | HTML, CSS, JS, SVG | Playbook and two decks; no template yet | Sep 2026 |
 | [Outreach Desk](projects/outreach-desk/) | Vanilla JS | Working demo | Nov 2026 |
 | [Kadou](projects/kadou-case-study/) | React, TypeScript, Express, PostgreSQL | Live product; case study only | 2025–2026 |
 
