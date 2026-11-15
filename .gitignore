@@ -1,0 +1,17 @@
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/
+.env
+.env.*
+# Video Clipper working data (big, third-party media)
+projects/video-clipper/Jobs/
+projects/video-clipper/Toolkit/env/
+projects/video-clipper/Toolkit/cache/
+projects/video-clipper/Toolkit/bin/yt-dlp
+projects/video-clipper/Toolkit/.heavy.lock
+
+# local drop folders / archives
+*.zip
+# raw, unsanitized exports dropped here by hand
+Podcast Noticias/

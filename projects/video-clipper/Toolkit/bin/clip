@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+"""clip — local pipeline that turns a long video into short, captioned LinkedIn clips.   Run `clip help`.   See ../README.md"""
+import datetime, fcntl, fnmatch, glob, json, os, re, shutil, subprocess, sys, time
+
+TOOLKIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(TOOLKIT)
+JOBS = f"{ROOT}/Jobs"
+LIB = f"{TOOLKIT}/lib"
+PY = f"{TOOLKIT}/env/venv/bin/python"
+V39 = f"{TOOLKIT}/env/venv39/bin/python"
+YTDLP = f"{TOOLKIT}/bin/yt-dlp"
+FPS_SNAP = [(23.976, "24000/1001"), (24.0, "24"), (25.0, "25"), (29.97, "30000/1001"), (30.0, "30"),
+            (50.0, "25"), (59.94, "30000/1001"), (60.0, "30")]
+
+HELP = """clip <command>            (job = folder name or unique prefix in Jobs/; omitted = newest job)
+
+  FIND + PREPARE
+  doctor                    check yt-dlp / ffmpeg / ffprobe / python envs (restores yt-dlp automatically if missing)
+  init <youtube_url>        create Jobs/<date>_<slug>/, download <=1080p video + YouTube captions, write job.json
+  init --file <video.mp4> [--url U] [--title T] [--captions x.vtt]   same, from a local file (linked, never copied/deleted)
+  transcript [job] [--whisper]   readable timestamped transcript (YouTube captions; --whisper = local, slow)
+  pauses [job] <a> <b>      real pauses (cut candidates) in a source range (seconds)
+  snap [job] <t>            nearest pauses to a target time
+  words [job] <a> <b>       caption words with times for a range
+  look [job] <a> <b> [n]    contact sheet to verify who is on screen / speaking (open the printed .jpg)
+  frame [job] <t>           one full-res frame      cuts [job] <a> <b>   shot changes in a range
+
+  MAKE
+  new [job] <slug>          scaffold clips/NN.json (+ folder name NN_<slug>) from the template
+  lint [job] <NN..|todo|all>  1-second pre-flight of the spec (cut points, quotes verbatim in YouTube captions) - build runs it first
+  build [job] <NN..|todo|all> [--wide|--tall] [--es] [--deep] [--keep-frames] [--no-lint]
+                            cut -> transcribe -> captions -> graphics -> render -> thumbnail -> QA.  EVERY clip is built twice:
+                            16:9 (NN_Title.mp4, 1920x1080) and 4:5 (NN_Title_4x5.mp4, 1080x1350, cropped on the speaker: spec "tall").
+                            Both use the clean look (captions + speaker pill + short source card). --wide / --tall = only that one.
+                            several clips run one after another (e.g. `build 01 03 05`; `todo` = missing, edited since, or QA not passing;
+                            `all`). Only one build/deep-check runs at a time on this Mac (others queue). Unchanged audio reuses cached whisper.
+                            lint, thumb, check and preview act on the 16:9 version unless you add --tall.
+                            --es = the Spanish-subtitled variant (spec needs an "es" block): NN_Title_ES.mp4/.srt/_Thumbnail.png next to the English
+                            files. Same English audio; captions, headline, pills, quote cards and closing card are Spanish. Also works with lint,
+                            thumb, check and preview.
+  thumb [job] <NN> <t> [L|R]  (re)make the thumbnail at final-video time t
+  check [job] <NN> [--deep]   re-run QA on the rendered clip
+  preview [job] <NN> [n]    contact sheet of the rendered clip (check graphics, faces, joins) — open the printed .jpg
+  footer [folder]           append the closing paragraph in Toolkit/post_footer.txt to every Post.txt (post_footer_es.txt to every Post_ES.txt) under a folder.
+                            NOT automatic: posts go out without it; use it only when a post should carry the call to action.
+  report [job]              write Review.md (what to check, incl. warnings about post length / "Breaking:" / hashtags) + Ready_To_Post/README.txt
+
+  REVIEW + CLEAN
+  status                    all jobs: size, posts ready, cleaned?
+  clean [job] [--yes]       delete everything except the finished posts (dry run unless --yes)
+  clean --legacy <dir> [--yes]   same for an old project folder (keeps Ready_To_Post + notes)
+  refetch [job]             re-download the source of a cleaned job (to revise a clip)
+"""
+
+def die(msg): print("clip:", msg, file=sys.stderr); sys.exit(1)
+def du(path):
+    tot = 0
+    for dp, dn, fn in os.walk(path):
+        for f in fn:
+            p = os.path.join(dp, f)
+            if not os.path.islink(p):
+                try: tot += os.path.getsize(p)
+                except OSError: pass
+    return tot
+def human(n):
+    for u in ("B", "KB", "MB", "GB"):
+        if n < 1024 or u == "GB": return f"{n:.0f} {u}" if u in ("B", "KB") else f"{n:.1f} {u}"
+        n /= 1024
+def slugify(t, n=42):
+    s = re.sub(r"[^A-Za-z0-9]+", "_", t).strip("_"); return s[:n].strip("_") or "video"
+def find_job(arg=None):
+    jobs = sorted([d for d in os.listdir(JOBS) if os.path.isdir(f"{JOBS}/{d}") and not d.startswith((".", "_"))]) if os.path.isdir(JOBS) else []
+    if not jobs: die("no jobs yet — run: clip init <youtube_url>")
+    if arg is None: return f"{JOBS}/{jobs[-1]}"
+    if os.path.isdir(arg) and os.path.exists(f"{arg}/job.json"): return os.path.abspath(arg)
+    m = [j for j in jobs if j == arg] or [j for j in jobs if j.startswith(arg)] or [j for j in jobs if arg in j]
+    if len(m) != 1: die(f"job {arg!r} not found or ambiguous: {m or jobs}")
+    return f"{JOBS}/{m[0]}"
+def split_job(args, takes):
+    """args = [job?] + `takes` positional args  -> (job_dir, rest)"""
+    pos = [a for a in args if not a.startswith("--")]
+    if len(pos) > takes: return find_job(pos[0]), pos[1:]
+    return find_job(), pos
+def env(job, n=None):
+    e = dict(os.environ, JOB_DIR=job, PYTHONDONTWRITEBYTECODE="1")
+    if n: e["CLIP_N"] = n
+    return e
+def lib(job, script, args, interp=PY, n=None):
+    """run a Toolkit/lib script with the right interpreter; cwd = job folder"""
+    return subprocess.run([interp, f"{LIB}/{script}"] + list(args), env=env(job, n), cwd=job).returncode
+def is_es(): return os.environ.get("CLIP_LANG") == "es"          # --es: Spanish-subtitled variant of a clip (audio stays English)
+def is_tall(): return os.environ.get("CLIP_FMT") == "tall"       # --tall: the 4:5 version (1080x1350) of a clip
+def sfx(): return ("_4x5" if is_tall() else "") + ("_ES" if is_es() else "")      # file-name suffix of this variant
+def vsfx(): return ("_4x5" if is_tall() else "") + ("_es" if is_es() else "")     # work-folder / check-file suffix (same as lib/common.py VSFX)
+BUILD_FMTS = ["wide", "tall"]                                     # what `clip build` makes; --wide / --tall narrow it
+def jobj(job): return json.load(open(f"{job}/job.json"))
+def clip_files(job): return sorted(glob.glob(f"{job}/clips/[0-9][0-9].json"))
+def clip_num(job, arg):
+    if arg is None: die("which clip? give the number, e.g. 01")
+    n = f"{int(arg):02d}" if arg.isdigit() else arg
+    if not os.path.exists(f"{job}/clips/{n}.json"): die(f"no spec {job}/clips/{n}.json (clip new ...)")
+    return n
+def slug_of(job, n): return json.load(open(f"{job}/clips/{n}.json"))["slug"]
+
+
+# ------------------------------------------------------------------ doctor (tool preflight)
+YTDLP_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+def ytdlp_ok():
+    try: return subprocess.run([YTDLP, "--version"], capture_output=True, text=True, timeout=60).returncode == 0
+    except Exception: return False
+def ensure_ytdlp():
+    """Toolkit/bin/yt-dlp (standalone macOS binary). Order: already working -> copy ~/Downloads/yt-dlp_macos -> download the official
+    standalone binary with curl. Prefer the standalone binary over a package-manager install."""
+    if ytdlp_ok(): return True
+    dl = os.path.expanduser("~/Downloads/yt-dlp_macos")
+    if os.path.exists(dl): shutil.copy(dl, YTDLP)
+    else:
+        print("yt-dlp not found: downloading the official standalone binary from github.com/yt-dlp/yt-dlp ...")
+        if subprocess.run(["curl", "-fL", YTDLP_URL, "-o", YTDLP]).returncode: return False
+    os.chmod(YTDLP, 0o755); subprocess.run(["xattr", "-d", "com.apple.quarantine", YTDLP], capture_output=True)
+    return ytdlp_ok()
+def cmd_doctor(args):
+    ok = True
+    for name, cmd in (("yt-dlp", [YTDLP, "--version"]), ("ffmpeg", ["ffmpeg", "-version"]), ("ffprobe", ["ffprobe", "-version"]),
+                      ("python (Pillow)", [PY, "-c", "import PIL;print(PIL.__version__)"]), ("python (whisper)", [V39, "-c", "import faster_whisper;print(faster_whisper.__version__)"])):
+        try: r = subprocess.run(cmd, capture_output=True, text=True, timeout=60); out = (r.stdout or r.stderr).strip().splitlines()[0]; good = r.returncode == 0
+        except Exception as e: out, good = str(e), False
+        if name == "yt-dlp" and not good: good = ensure_ytdlp(); out = "restored" if good else "MISSING and could not be downloaded"
+        print(f"{'ok ' if good else 'BAD'}  {name}: {out}"); ok &= good
+    if not ok: die("some tools are missing — see above (see README: Setup)")
+
+# ------------------------------------------------------------------ init / fetch
+def probe_source(path):
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,r_frame_rate:format=duration",
+                        "-of", "json", path], capture_output=True, text=True); j = json.loads(r.stdout)
+    st = j["streams"][0]; a, b = st["r_frame_rate"].split("/"); fps = int(a) / int(b)
+    snap = min(FPS_SNAP, key=lambda x: abs(x[0] - fps))[1]
+    return dict(width=st["width"], height=st["height"], src_fps=round(fps, 3), fps=snap, duration=round(float(j["format"]["duration"]), 1))
+def cmd_init(args):
+    if "--file" in args:
+        i = args.index("--file"); f = os.path.abspath(args[i + 1]); url = args[args.index("--url") + 1] if "--url" in args else ""
+        title = args[args.index("--title") + 1] if "--title" in args else os.path.splitext(os.path.basename(f))[0]
+        meta = dict(title=title, channel="", url=url, id=slugify(title, 12)); local = f
+        cap_arg = os.path.abspath(args[args.index("--captions") + 1]) if "--captions" in args else None
+    else:
+        url = args[0] if args else die("usage: clip init <youtube_url>")
+        if not ensure_ytdlp(): die("yt-dlp is unavailable; run `clip doctor`")
+        r = subprocess.run([YTDLP, "--no-playlist", "--skip-download", "--dump-single-json", url], capture_output=True, text=True)
+        if r.returncode: die("yt-dlp could not read that link:\n" + r.stderr[-800:])
+        m = json.loads(r.stdout)
+        meta = dict(title=m.get("title", ""), channel=m.get("channel") or m.get("uploader", ""), url=m.get("webpage_url", url), id=m["id"],
+                    description=(m.get("description") or "")[:3000], chapters=[dict(t=c["start_time"], title=c["title"]) for c in (m.get("chapters") or [])],
+                    upload_date=m.get("upload_date", "")); local = None
+    job = f"{JOBS}/{datetime.date.today():%Y-%m-%d}_{slugify(meta['title'])}"
+    os.makedirs(f"{job}/source", exist_ok=True); os.makedirs(f"{job}/clips", exist_ok=True); os.makedirs(f"{job}/Ready_To_Post", exist_ok=True)
+    if local:
+        dst = f"{job}/source/video{os.path.splitext(local)[1]}"
+        if not os.path.exists(dst): os.symlink(local, dst)
+        source = os.path.relpath(dst, job); captions = None
+        if cap_arg:
+            cdst = f"{job}/source/video.en.vtt"
+            if not os.path.exists(cdst): os.symlink(cap_arg, cdst)
+            captions = os.path.relpath(cdst, job)
+    else:
+        fetch(job, url); source, captions = find_source(job)
+    pr = probe_source(f"{job}/{source}")
+    if abs(pr["width"] / pr["height"] - 16 / 9) > 0.03: print(f"WARNING: source is {pr['width']}x{pr['height']} (not 16:9); the pipeline scales to 1920x1080 and will distort.")
+    j = dict(meta, source=source, captions=captions, created=str(datetime.date.today()), **pr)
+    json.dump(j, open(f"{job}/job.json", "w"), indent=2)
+    print(f"job: {job}\n  {meta['title']}  ({meta['channel']})\n  {pr['width']}x{pr['height']} @ {pr['src_fps']} fps -> output {pr['fps']}   duration {pr['duration']/60:.1f} min   captions: {captions or 'NONE (use: clip transcript --whisper)'}")
+    print(f"next: clip transcript   (then read {job}/source/transcript.md)")
+def fetch(job, url):
+    fmt = "bv*[height<=1080][vcodec^=avc1]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]"
+    out = f"{job}/source/video.%(ext)s"
+    if subprocess.run([YTDLP, "--no-playlist", "-f", fmt, "--merge-output-format", "mp4", "-o", out, "--no-warnings", "--progress", url]).returncode:
+        die("video download failed (see output above)")
+    # captions are best-effort and fetched separately: only the English tracks (never auto-translated ones: YouTube rate-limits those)
+    for langs in ("en", "en-orig"):
+        subprocess.run([YTDLP, "--no-playlist", "--skip-download", "--write-auto-subs", "--write-subs", "--sub-langs", langs, "--sub-format", "vtt",
+                        "-o", out, "--no-warnings", "-q", url])
+def find_source(job):
+    vids = [f for f in glob.glob(f"{job}/source/video.*") if f.endswith((".mp4", ".mkv", ".webm", ".mov"))]
+    if not vids: die("download produced no video file")
+    cap = next((f for f in (f"{job}/source/video.en.vtt", f"{job}/source/video.en-orig.vtt") if os.path.exists(f)), None)
+    return os.path.relpath(vids[0], job), (os.path.relpath(cap, job) if cap else None)
+def cmd_refetch(args):
+    job = find_job(args[0] if args else None); j = jobj(job)
+    if not ensure_ytdlp(): die("yt-dlp is unavailable; run `clip doctor`")
+    if not j.get("url"): die("job has no URL (local-file job): put the video back at " + j["source"])
+    os.makedirs(f"{job}/source", exist_ok=True); fetch(job, j["url"]); j["source"], j["captions"] = find_source(job); j.pop("cleaned", None)
+    json.dump(j, open(f"{job}/job.json", "w"), indent=2); print("source restored:", j["source"])
+
+# ------------------------------------------------------------------ explore
+def cmd_explore(name, args, takes):
+    job, rest = split_job(args, takes); sys.exit(lib(job, "explore.py", [name] + rest))
+def cmd_transcript(args):
+    job = find_job(next((a for a in args if not a.startswith("--")), None))
+    sys.exit(lib(job, "transcript.py", [a for a in args if a.startswith("--")], interp=V39))
+
+# ------------------------------------------------------------------ make
+def cmd_new(args):
+    job, rest = split_job(args, 1)
+    if not rest: die("usage: clip new [job] <slug>   e.g. clip new AI_Adoption_Experts_Missed_It")
+    ex = clip_files(job); n = f"{len(ex) + 1:02d}"; slug = f"{n}_{slugify(rest[0], 60)}"
+    t = json.load(open(f"{TOOLKIT}/templates/clip.template.json")); t["slug"] = slug
+    json.dump(t, open(f"{job}/clips/{n}.json", "w"), indent=2, ensure_ascii=False)
+    print(f"created {job}/clips/{n}.json   (output folder will be Ready_To_Post/{slug}/)\nfill it in following Toolkit/SPEC_REFERENCE.md, then: clip build {n}")
+class BuildFail(Exception): pass
+_LOCK = None
+def heavy_lock(what):
+    """Only ONE heavy job (build / deep check) at a time, across all sessions. This Mac has 8 GB RAM: two whisper models at once
+    make it thrash and everything crawls (clip 04 of the Muse job lost ~1 hour that way). Others queue here; the lock is released
+    automatically when the process ends, even if it is killed."""
+    global _LOCK
+    if _LOCK: return
+    f = open(f"{TOOLKIT}/.heavy.lock", "w")
+    try: fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(f"[{what}] another build/check is running: waiting for it to finish (one heavy job at a time)...", flush=True)
+        fcntl.flock(f, fcntl.LOCK_EX); print(f"[{what}] my turn.", flush=True)
+    _LOCK = f
+def is_sel(a): return a in ("all", "todo") or (a.isdigit() and len(a) <= 2)
+def clip_selection(args, takes_flags=True):
+    """args -> (job, [clip numbers]). Accepts: [job] 03 | [job] 01 03 05 | [job] todo | [job] all"""
+    pos = [a for a in args if not a.startswith("--")]
+    job = find_job(pos.pop(0)) if len(pos) >= 2 and not is_sel(pos[0]) else find_job()
+    if len(pos) == 1 and not is_sel(pos[0]): job = find_job(pos.pop(0))
+    if not pos: die("which clip(s)? e.g.  03   |   01 03 05   |   todo (missing, edited, or QA not passing)   |   all")
+    if pos == ["all"]: return job, [os.path.basename(f)[:2] for f in clip_files(job) if not is_es() or json.load(open(f)).get("es")]
+    if pos == ["todo"]:
+        todo = []
+        for f in clip_files(job):
+            n = os.path.basename(f)[:2]; mp4 = f"{job}/Ready_To_Post/{slug_of(job, n)}/{slug_of(job, n)}{sfx()}.mp4"
+            if is_es() and not json.load(open(f)).get("es"): continue          # --es only touches clips that have a Spanish block
+            ck = f"{job}/clips/{n}.check{vsfx()}.json"
+            try: passed = json.load(open(ck)).get("status") == "PASS" and os.path.getmtime(ck) >= os.path.getmtime(mp4)
+            except Exception: passed = False
+            if not os.path.exists(mp4) or os.path.getmtime(f) > os.path.getmtime(mp4) or not passed: todo.append(n)   # missing, edited since, or QA not passing
+        return job, todo
+    return job, [clip_num(job, x) for x in pos]
+def lint_clip(job, n):
+    return lib(job, "lint.py", [], n=n) == 0
+def build_one(job, n, args):
+    spec = json.load(open(f"{job}/clips/{n}.json")); slug = spec["slug"]
+    if not spec.get("segments"): raise BuildFail("spec has no segments")
+    if is_es() and not spec.get("es"): raise BuildFail('spec has no "es" block (Spanish headline/pills/cards/closing + phrases_es): see SPEC_REFERENCE.md "Spanish version"')
+    out_dir = f"{job}/Ready_To_Post/{slug}"; os.makedirs(out_dir, exist_ok=True); out = f"{out_dir}/{slug}{sfx()}.mp4"
+    cw = f"{job}/work/clips/{n}" + vsfx(); os.makedirs(cw, exist_ok=True)
+    if "--no-lint" not in args and not lint_clip(job, n): raise BuildFail("lint found errors in the spec (fix them, or --no-lint to override)")
+    T = []
+    def step(label, script, a=(), interp=PY):
+        print(f"\n== {label}", flush=True); t0 = time.time()
+        if lib(job, script, list(a), interp=interp, n=n): raise BuildFail(f"step failed: {label}")
+        T.append((label.split(" ")[0], time.time() - t0))
+    step("plan", "plan.py"); step("cut + reframe (ffmpeg)", "build_base.py")
+    step("transcribe the cut chunk by chunk (whisper)", "transcribe_chunks.py", [cw], interp=V39)
+    step("captions", "captions.py")
+    step("graphics + render", "render.py", [out] + [a for a in args if a == "--keep-frames"])
+    shutil.copy(f"{cw}/subs.srt", f"{out_dir}/{slug}{sfx()}.srt")
+    th = spec.get("thumb")
+    if th: step("thumbnail", "thumb.py", [str(th["t"]), f"{out_dir}/{slug}{sfx()}_Thumbnail.png"] + ([th["side"]] if th.get("side") else []))
+    else: print("\n(no 'thumb' in the spec: run `clip thumb %s <final_time_s> [L|R]` once you've looked at the video)" % n)
+    fc = f"{out_dir}/First_Comment{'_ES' if is_es() else ''}.txt"
+    j = jobj(job)
+    if not os.path.exists(fc) and j.get("url"): open(fc, "w").write((f"Conversación completa ({j['title']}): {j['url']}\n") if is_es() else f"Full conversation ({j['title']}): {j['url']}\n")
+    step("QA", "check.py", [out] + [a for a in args if a == "--deep"], interp=V39)
+    print("\ntimes: " + "  ".join(f"{k} {v:.0f}s" for k, v in T) + f"   total {sum(v for _, v in T)/60:.1f} min")
+    print(f"DONE  {out}")
+    return out
+def cmd_build(args):
+    plan = []
+    for fm in BUILD_FMTS:                      # each format has its own "todo" (its own output file and QA result)
+        os.environ["CLIP_FMT"] = fm
+        job, nums = clip_selection(args); plan += [(fm, n) for n in nums]
+    if not plan: print("nothing to build: every clip is already up to date."); return
+    plan.sort(key=lambda x: (x[1], x[0] != "wide"))          # clip by clip: 16:9 first, then its 4:5 (which reuses the cached whisper)
+    heavy_lock("build")
+    results = []; t_all = time.time()
+    for fm, n in plan:
+        os.environ["CLIP_FMT"] = fm; name = f"{n} ({'4:5' if fm == 'tall' else '16:9'})"; t0 = time.time()
+        print(f"\n######## clip {name}", flush=True)
+        try: build_one(job, n, args); results.append((name, "ok", time.time() - t0))
+        except BuildFail as e:
+            print(f"\nclip {name}: {e}", file=sys.stderr); results.append((name, f"FAILED: {e}", time.time() - t0))
+    print(f"\n==== build summary ({(time.time()-t_all)/60:.1f} min total) ====")
+    for name, st, dt_ in results: print(f"  clip {name}: {st}  ({dt_/60:.1f} min)")
+    if any(st != "ok" for _, st, _ in results): sys.exit(1)
+def cmd_lint(args):
+    job, nums = clip_selection(args); bad = 0
+    for n in nums: bad += 0 if lint_clip(job, n) else 1
+    sys.exit(1 if bad else 0)
+def cmd_thumb(args):
+    job, rest = split_job(args, 2); n = clip_num(job, rest[0]); slug = slug_of(job, n)
+    sys.exit(lib(job, "thumb.py", [rest[1], f"{job}/Ready_To_Post/{slug}/{slug}{sfx()}_Thumbnail.png"] + rest[2:], n=n))
+def cmd_preview(args):
+    job, rest = split_job(args, 1); n = clip_num(job, rest[0] if rest else None); slug = slug_of(job, n); spec = json.load(open(f"{job}/clips/{n}.json"))
+    j = jobj(job); FT = (lambda a, b: int(b) / int(a))(*(j["fps"].split("/") + ["1"])[:2]); F = 0; joins = []
+    for i, sg in enumerate(spec["segments"]):
+        x = 0 if i == 0 else sg.get("x", 5); nn = int((sg["b"] - sg["a"]) / FT)
+        if i: F -= x; joins.append(f"{(F + x / 2) * FT:.2f}")
+        F += nn
+    sys.exit(lib(job, "explore.py", ["preview", f"{job}/Ready_To_Post/{slug}/{slug}{sfx()}.mp4", rest[1] if len(rest) > 1 else "12", ",".join(joins)]))
+def cmd_check(args):
+    job, rest = split_job(args, 1); n = clip_num(job, rest[0] if rest else None); slug = slug_of(job, n)
+    if "--deep" in args: heavy_lock("deep check")
+    sys.exit(lib(job, "check.py", [f"{job}/Ready_To_Post/{slug}/{slug}{sfx()}.mp4"] + [a for a in args if a == "--deep"], interp=V39, n=n))
+
+
+# ------------------------------------------------------------------ post footer (optional closing paragraph)
+def apply_footer(root):
+    """append Toolkit/post_footer.txt to every Post.txt (and post_footer_es.txt to every Post_ES.txt) under root that doesn't already end with it (idempotent)"""
+    done = []
+    for name, ff in (("Post.txt", "post_footer.txt"), ("Post_ES.txt", "post_footer_es.txt")):
+        foot = open(f"{TOOLKIT}/{ff}").read().strip()
+        for p in sorted(glob.glob(f"{root}/**/{name}", recursive=True)):
+            t = open(p).read(); core = foot.splitlines()[-1]
+            if foot in t: continue
+            if core in t: t = t[:t.index(core)]                  # an older footer without the divider: replace it
+            open(p, "w").write(t.rstrip("\n") + "\n\n" + foot + "\n"); done.append(p)
+    return done
+def cmd_footer(args):
+    root = os.path.realpath(args[0] if args and os.path.isabs(args[0]) else (f"{ROOT}/{args[0]}" if args else find_job()))
+    if not root.startswith(ROOT): die("folder must be inside Video Clipper")
+    d = apply_footer(root); print(f"footer added to {len(d)} Post.txt file(s) under {root}" + "".join(f"\n  {x}" for x in d))
+
+# ------------------------------------------------------------------ report
+def post_issues(t):
+    """things the post style rules say a post should not have: flagged in Review.md, never auto-fixed"""
+    out = []; body = t.split("----------------")[0]
+    body = "\n".join(l for l in body.splitlines() if not re.match(r"\s*(Source|Fuente|Citas? traducidas?)\b", l))      # the source line is not counted
+    words = len([w for w in re.sub(r"\[\[.*?\]\]", " ", body, flags=re.S).split() if re.search(r"\w", w)])
+    if words > 100: out.append(f"{words} words: a clip post is 60-90 words (his claim, one sentence on what the speaker says, what he has seen, one question). Do not retell the video")
+    if "[[" in t: out.append("still has a [[...]] placeholder for the author's own experience: fill it in or delete the line before posting")
+    if re.search(r"\bbreaking\b|última hora", t, re.I): out.append('uses "Breaking" / "Última hora": not used any more')
+    if re.search(r"(^|\s)#\w", t): out.append("has hashtags: remove them")
+    if "----------------" in t: out.append("has the sales footer: posts go out without it now (remove it unless this post should carry the call to action)")
+    if re.search(r"\b(isn't|is not|aren't|are not|wasn't)\b[^.?!\n]{1,60}[,;:.]\s*(it's|it is|they're|they are|it was)\b", t, re.I) or re.search(r"\bno (es|son|era)\b[^.?!\n]{1,70}\bsino\b", t, re.I):
+        out.append("uses the \"it's not X, it's Y\" construction, which LinkedIn names as a mark of generic AI text: say the claim directly")
+    if re.search(r"please watch|golden nugget|por favor mira", t, re.I): out.append("asks the reader to watch: state the point instead")
+    return out
+def mmss(t): return f"{int(t//3600)}:{int(t%3600//60):02d}:{t%60:04.1f}" if t >= 3600 else f"{int(t//60)}:{t%60:04.1f}"
+def cmd_report(args):
+    job = find_job(args[0] if args else None); j = jobj(job)
+    FT = (lambda a, b: int(b) / int(a))(*(j["fps"].split("/") + ["1"])[:2])
+    L = [f"# Review — {j['title']}", "", f"- Source: {j.get('url') or j['source']}  ({j.get('channel','')})", f"- Job: `{os.path.basename(job)}`   created {j['created']}",
+         "- Nothing has been published or uploaded. Review, then tell me to clean up (or ask for changes).", ""]
+    notes = f"{job}/review_notes.md"
+    if os.path.exists(notes): L += [open(notes).read().strip(), ""]
+    L += ["## Posts ready", "", "| # | Folder | Length | 16:9 (QA) | 4:5 (QA) | Post.txt | Post_ES.txt | Spanish video |", "|---|---|---|---|---|---|---|---|"]
+    detail = []; readme = []
+    for cf in clip_files(job):
+        n = os.path.basename(cf)[:2]; s = json.load(open(cf)); slug = s["slug"]; d = f"{job}/Ready_To_Post/{slug}"
+        ck = f"{job}/clips/{n}.check.json"; chk = json.load(open(ck)) if os.path.exists(ck) else {}
+        ck4 = f"{job}/clips/{n}.check_4x5.json"; chk4 = json.load(open(ck4)) if os.path.exists(ck4) else {}
+        has4 = os.path.exists(f"{d}/{slug}_4x5.mp4")
+        dur = chk.get("duration") or chk4.get("duration"); post = os.path.exists(f"{d}/Post.txt")
+        post_es = os.path.exists(f"{d}/Post_ES.txt"); es_vid = os.path.exists(f"{d}/{slug}_ES.mp4")
+        L.append(f"| {n} | `{slug}` | {dur and mmss(dur)} | {chk.get('status','not run') if os.path.exists(f'{d}/{slug}.mp4') else '**not built**'} | {chk4.get('status','not run') if has4 else '**not built**'} | {'yes' if post else '**MISSING**'} | {'yes' if post_es else '**MISSING**'} | {('yes (QA ' + json.load(open(f'{job}/clips/{n}.check_es.json')).get('status', '?') + ')') if es_vid and os.path.exists(f'{job}/clips/{n}.check_es.json') else ('yes' if es_vid else 'no (English video only)')} |")
+        readme.append(f"{slug:44s} {dur and mmss(dur)}  {s.get('title','')}")
+        F = 0; joins = []; rng = []
+        for i, sg in enumerate(s["segments"]):
+            k = int(sg["a"] / FT + .5); nn = int((sg["b"] - sg["a"]) / FT); x = 0 if i == 0 else sg.get("x", 5)
+            if i: F -= x; joins.append(round((F + x / 2) * FT, 1))
+            rng.append(f"{mmss(sg['a'])}–{mmss(sg['b'])}"); F += nn
+        q = [c["text"].replace("*", "") for c in s.get("cards", {}).values()] + [" ".join((h.get("pre") or []) + [l[0] for l in h["lines"]]) for h in s.get("heroes", {}).values()]
+        detail += [f"### {slug}", f"**{s.get('title','')}** — speaker(s): {s.get('speakers','?')}", "", f"- Opens on (hook): {(s.get('phrases') or ['?'])[0].replace('|', ' ')}" if s['segments'][0].get('hook') else ("- Opens on its strongest line (no separate hook): " + ' '.join(s.get('phrases') or ['?']).replace('|', ' ').split('.')[0] + '.'  if s.get('cold_open') == 'natural' else "- No cold open"), f"- Thumbnail text: {' '.join(l[0] for l in (s.get('headline') or {}).get('lines', [])) or 'none'}",
+                   f"- Source ranges: " + "; ".join(rng), f"- Listen to the joins at final-video seconds: {joins or 'none (single cut)'}"]
+        if s.get("style") == "full" and q: detail += ["- Quote graphics (verbatim):"] + [f"  - “{t.strip().strip(chr(8221)).strip()}”" for t in q]
+        if s.get("tall"): detail.append(f"- 4:5 crop: centred at {s['tall'].get('x', 0.5)} of the frame width, {len(s['tall'].get('windows', []))} per-shot window(s). Watch the 4:5 once to confirm the speaker is always in frame.")
+        E = s.get("es")
+        if E and es_vid:
+            detail += ["- Spanish version (audio stays English; captions and pills translated by me: please read the _ES.srt):"]
+            for k_, c_ in (E.get("cards", {}).items() if s.get("style") == "full" else []): detail.append(f"  - {k_}: “{s['cards'][k_]['text'].replace('*', '')}” → “{c_['text'].replace('*', '')}”")
+            if s.get("style") == "full" and E.get("closing", {}).get("main"): detail.append(f"  - Closing: {' '.join(t_ for t_, _ in E['closing']['main'])} — {E['closing'].get('sub', '')}")
+        for pf in ("Post.txt", "Post_ES.txt"):
+            if os.path.exists(f"{d}/{pf}"):
+                for w_ in post_issues(open(f"{d}/{pf}").read()): detail.append(f"- ⚠ {pf}: {w_}")
+        for c in s.get("caveats", []): detail.append(f"- ⚠ {c}")
+        for nm, c_ in (("16:9", chk), ("4:5", chk4)):
+            failed = [k for k, v in c_.items() if isinstance(v, dict) and not v.get("ok")]
+            if failed: detail.append(f"- ❌ QA failures ({nm}): {failed}")
+        detail.append("")
+    L += ["", "## Details", ""] + detail
+    L += ["## Always do before posting", "- One listen per video (the agent cannot hear audio) — especially the joins listed above.", "- Check names/titles of speakers and any claim in Post.txt against the video.",
+          "- After you edit a post, paste the final text back to me: I check names, quotes and claims against the transcript before you schedule it.",
+          "- Two clips a week at most, never two posts on the same day. Each clip has a 4:5 and a 16:9 video: post one of them (alternate week by week to compare).", "",
+          "## After you approve", "Say \"clean up\" and I will run `clip clean` (deletes the source video, intermediates and drafts; keeps only Ready_To_Post, specs and this review)."]
+    open(f"{job}/Review.md", "w").write("\n".join(L) + "\n")
+    open(f"{job}/Ready_To_Post/README.txt", "w").write("READY TO POST — one folder per LinkedIn post: NN_Title_4x5.mp4 (4:5, fills a phone screen) and NN_Title.mp4 (16:9), each with its thumbnail; .srt, Post.txt, Post_ES.txt, First_Comment.txt. Post ONE of the two videos.\n\n" + "\n".join(readme) +
+        "\n\nBefore posting: one listen per video; edit Post.txt freely; paste First_Comment.txt as the first comment. Nothing has been published.\n")
+    print(f"wrote {job}/Review.md and Ready_To_Post/README.txt")
+
+# ------------------------------------------------------------------ status / clean
+def legacy_dirs():
+    out = []
+    for d in sorted(os.listdir(ROOT)):
+        p = f"{ROOT}/{d}"
+        if os.path.isdir(p) and d not in ("Toolkit", "Jobs") and not d.startswith("."): out.append(p)
+        # legacy nested project (an older folder with Ready_To_Post inside)
+    return out
+def cmd_status(args):
+    print(f"{'JOB':58s} {'SIZE':>9s}  POSTS  STATE")
+    for d in sorted(os.listdir(JOBS)) if os.path.isdir(JOBS) else []:
+        p = f"{JOBS}/{d}"
+        if not os.path.isdir(p) or d.startswith((".", "_")): continue
+        posts = len({os.path.dirname(x) for x in glob.glob(f"{p}/Ready_To_Post/*/*.mp4")})
+        j = jobj(p) if os.path.exists(f"{p}/job.json") else {}
+        print(f"{d[:58]:58s} {human(du(p)):>9s}  {posts:^5d}  {'cleaned ' + j['cleaned'] if j.get('cleaned') else 'working files present'}")
+    print("\nlegacy folders (made before the Toolkit):")
+    for p in legacy_dirs():
+        posts = len(glob.glob(f"{p}/Ready_To_Post/*/*.mp4"))
+        print(f"{os.path.basename(p)[:58]:58s} {human(du(p)):>9s}  {posts:^5d}  clean with: clip clean --legacy \"{os.path.basename(p)}\"")
+    for f in sorted(glob.glob(f"{ROOT}/*.mp4")): print(f"loose video: {os.path.basename(f)}  {human(os.path.getsize(f))}  (source file; delete by hand when finished)")
+def plan_delete(job, keep_names, keep_globs):
+    dele = []
+    for e in sorted(os.listdir(job)):
+        if e in keep_names or any(fnmatch.fnmatch(e, g) for g in keep_globs): continue
+        dele.append(e)
+    return dele
+def cmd_clean(args):
+    yes = "--yes" in args; legacy = "--legacy" in args; pos = [a for a in args if not a.startswith("--")]
+    if legacy:
+        if not pos: die("usage: clip clean --legacy <folder name> [--yes]")
+        job = os.path.realpath(pos[0] if os.path.isabs(pos[0]) else f"{ROOT}/{pos[0]}")
+        keep_names = {"Ready_To_Post"}; keep_globs = ["*.md", "*.txt"]
+    else:
+        job = find_job(pos[0] if pos else None); keep_names = {"Ready_To_Post", "clips", "job.json", "Review.md", "review_notes.md"}; keep_globs = []
+    if os.path.dirname(job) not in (JOBS, ROOT) or os.path.basename(job) in ("Toolkit", "Jobs"): die(f"refusing to clean {job}")
+    rtp = f"{job}/Ready_To_Post"; vids = glob.glob(f"{rtp}/*/*.mp4")
+    if not vids: die(f"{rtp} has no finished videos — refusing to delete anything")
+    if not legacy:
+        miss = [json.load(open(c))["slug"] for c in clip_files(job) if not glob.glob(f"{rtp}/{json.load(open(c))['slug']}/*.mp4")]
+        if miss: die(f"clips without a finished video in Ready_To_Post: {miss} — refusing to delete anything")
+    dele = plan_delete(job, keep_names, keep_globs); tot = 0
+    print(f"{'DELETING' if yes else 'DRY RUN — would delete'} from {job}:")
+    for e in dele:
+        p = f"{job}/{e}"; sz = du(p) if os.path.isdir(p) and not os.path.islink(p) else (0 if os.path.islink(p) else os.path.getsize(p)); tot += sz
+        print(f"  {human(sz):>9s}  {e}{'  (link only; original file untouched)' if os.path.islink(p) else ''}")
+    keep = sorted(set(os.listdir(job)) - set(dele)); print(f"KEEPING: {', '.join(keep)}  ({len(vids)} finished videos, {human(du(rtp))})\nfreed: {human(tot)}")
+    if not yes: print("\nnothing deleted. Re-run with --yes after the posts are approved."); return
+    for e in dele:
+        p = f"{job}/{e}"
+        if os.path.islink(p) or os.path.isfile(p): os.remove(p)
+        else: shutil.rmtree(p)
+    if not legacy and os.path.exists(f"{job}/job.json"):
+        j = jobj(job); j["cleaned"] = str(datetime.date.today()); json.dump(j, open(f"{job}/job.json", "w"), indent=2)
+        os.makedirs(f"{job}/source", exist_ok=True)
+    print("done.")
+
+def main():
+    a = sys.argv[1:]
+    if not a or a[0] in ("help", "-h", "--help"): print(HELP); return
+    c, r = a[0], a[1:]
+    if "--es" in r: os.environ["CLIP_LANG"] = "es"; r = [x for x in r if x != "--es"]
+    fm = [x for x in ("--wide", "--tall") if x in r]; r = [x for x in r if x not in ("--wide", "--tall")]
+    if len(fm) == 1:
+        BUILD_FMTS[:] = [fm[0][2:]]
+        if fm[0] == "--tall": os.environ["CLIP_FMT"] = "tall"
+    if c == "init": cmd_init(r)
+    elif c == "doctor": cmd_doctor(r)
+    elif c == "refetch": cmd_refetch(r)
+    elif c == "transcript": cmd_transcript(r)
+    elif c in ("pauses", "words", "cuts"): cmd_explore(c, r, 2)
+    elif c in ("snap", "frame"): cmd_explore(c, r, 1)
+    elif c == "look": job, rest = split_job(r, 2); sys.exit(lib(job, "explore.py", ["look"] + rest))
+    elif c == "new": cmd_new(r)
+    elif c == "build": cmd_build(r)
+    elif c == "lint": cmd_lint(r)
+    elif c == "thumb": cmd_thumb(r)
+    elif c == "check": cmd_check(r)
+    elif c == "preview": cmd_preview(r)
+    elif c == "report": cmd_report(r)
+    elif c == "footer": cmd_footer(r)
+    elif c == "status": cmd_status(r)
+    elif c == "clean": cmd_clean(r)
+    else: die(f"unknown command {c!r}; run: clip help")
+if __name__ == "__main__": main()

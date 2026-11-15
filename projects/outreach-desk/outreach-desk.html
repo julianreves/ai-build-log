@@ -1,0 +1,803 @@
+<title>Outreach Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@600;700&display=swap">
+<style>
+/* Layout: sticky top bar + tabs, one working surface per tab (Today, Pipeline, Accounts, Log, Scorecard). Drawer slides over for one contact. */
+:root{
+  --bg:#F2F5F7; --surface:#FFFFFF; --surface-2:#E8EDF1; --line:#D3DAE1; --fg:#142029; --muted:#586878;
+  --accent:#0B6E69; --accent-fg:#FFFFFF; --accent-soft:#D8EFEC;
+  --due:#9A4A06; --due-bg:#FCEBD3; --ok:#17703F; --ok-bg:#D9F1E3; --bad:#B0281C; --bad-bg:#FADFDB;
+  --seg-a:#2557C8; --seg-a-bg:#DCE6FB; --seg-c:#8A4B00; --seg-c-bg:#F7E4C6; --seg-w:#17703F; --seg-w-bg:#D9F1E3;
+  --shadow:0 1px 2px rgba(20,32,41,.06),0 6px 18px rgba(20,32,41,.07);
+  --font-display:'Schibsted Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-body:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E151B; --surface:#161F27; --surface-2:#1E2933; --line:#2A3743; --fg:#E7EDF2; --muted:#94A5B4;
+  --accent:#4CC2B8; --accent-fg:#04201D; --accent-soft:#12312F;
+  --due:#F1B766; --due-bg:#3A2A12; --ok:#5ED093; --ok-bg:#12321F; --bad:#F28E85; --bad-bg:#3B1B18;
+  --seg-a:#8FB0FF; --seg-a-bg:#1A2B52; --seg-c:#F0B866; --seg-c-bg:#3A2A12; --seg-w:#5ED093; --seg-w-bg:#12321F;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E151B; --surface:#161F27; --surface-2:#1E2933; --line:#2A3743; --fg:#E7EDF2; --muted:#94A5B4;
+  --accent:#4CC2B8; --accent-fg:#04201D; --accent-soft:#12312F;
+  --due:#F1B766; --due-bg:#3A2A12; --ok:#5ED093; --ok-bg:#12321F; --bad:#F28E85; --bad-bg:#3B1B18;
+  --seg-a:#8FB0FF; --seg-a-bg:#1A2B52; --seg-c:#F0B866; --seg-c-bg:#3A2A12; --seg-w:#5ED093; --seg-w-bg:#12321F;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.35); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.45;
+  padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:30}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+h1,h2,h3{font-family:var(--font-display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.wrap{max-width:1180px;margin-inline:auto}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);padding-top:14px}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand h1{font-size:20px}
+.brand .date{color:var(--muted);font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px}
+.pill b{font-family:var(--font-mono);font-weight:500}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.dot.g{background:var(--ok)}.dot.y{background:var(--due)}.dot.r{background:var(--bad)}
+.tabs{display:flex;gap:2px;overflow-x:auto;margin-top:10px;border-bottom:1px solid var(--line);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{background:none;border:0;padding:9px 14px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;white-space:nowrap}
+.tab[aria-current="page"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tab .n{font-family:var(--font-mono);font-size:11px;background:var(--surface-2);border-radius:999px;padding:1px 7px;margin-left:6px;color:var(--muted)}
+main{padding-top:18px;display:grid;gap:18px}
+/* generic */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.card h2{font-size:15px;margin-bottom:10px}
+.sub{color:var(--muted);font-size:13px}
+.row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:6px 11px;font-weight:500;font-size:13px}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{border-color:transparent;background:none;color:var(--muted)}
+.btn.ghost:hover{color:var(--fg);background:var(--surface-2)}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+.link{background:none;border:0;padding:0;font-weight:600;text-align:left;color:var(--fg)}
+.link:hover{text-decoration:underline}
+a.ext{color:var(--accent);text-decoration:none;font-weight:500}a.ext:hover{text-decoration:underline}
+.chip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;border-radius:5px;padding:1px 7px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.chip.seg-A{background:var(--seg-a-bg);color:var(--seg-a)}.chip.seg-C{background:var(--seg-c-bg);color:var(--seg-c)}.chip.seg-W{background:var(--seg-w-bg);color:var(--seg-w)}
+.chip.due{background:var(--due-bg);color:var(--due)}.chip.bad{background:var(--bad-bg);color:var(--bad)}.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.mono{font-family:var(--font-mono);font-weight:500}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fbtn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:500;color:var(--muted)}
+.fbtn[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+input[type=text],input[type=date],input[type=number],input[type=search],select,textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px}
+textarea{min-height:72px;resize:vertical}
+label{display:grid;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:28px 18px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--fg);font-family:var(--font-display);font-size:16px;margin-bottom:4px}
+/* today */
+.hero{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;align-items:stretch}
+@media (max-width:780px){.hero{grid-template-columns:1fr}}
+.big{font-family:var(--font-mono);font-size:44px;font-weight:500;line-height:1;letter-spacing:-.03em}
+.big small{font-size:20px;color:var(--muted);font-weight:400}
+.meter{position:relative;height:12px;background:var(--surface-2);border-radius:99px;margin:14px 0 8px;overflow:visible}
+.meter i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--accent);max-width:100%}
+.meter s{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--fg);opacity:.55}
+.meter span{position:absolute;top:16px;font-size:11px;color:var(--muted);transform:translateX(-50%);font-family:var(--font-mono);white-space:nowrap}
+.streams{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+.coach{border-left:3px solid var(--due);background:var(--due-bg);color:var(--fg);padding:10px 12px;border-radius:0 8px 8px 0;font-size:13.5px}
+.coach.ok{border-color:var(--ok);background:var(--ok-bg)}
+.agenda{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.arow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);align-items:center}
+@media (max-width:640px){.arow{grid-template-columns:1fr}}
+.arow .who{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.arow .meta{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.arow .next{font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.arow .btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center;grid-row:1/span 3;grid-column:2}
+@media (max-width:640px){.arow .btns{grid-row:auto;grid-column:auto}}
+.grouphead{display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 8px}
+.grouphead h3{font-size:14px}
+.upcoming{display:grid;gap:8px}
+.up{display:grid;grid-template-columns:110px 1fr;gap:10px;font-size:13px;padding:8px 0;border-top:1px solid var(--line)}
+.up:first-child{border-top:0}
+.goalgrid{display:grid;gap:10px}
+/* board */
+.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;align-items:flex-start}
+.col{flex:0 0 232px;background:var(--surface-2);border-radius:10px;padding:8px;min-height:120px}
+.col.over{outline:2px dashed var(--accent)}
+.col h3{font-size:12.5px;display:flex;justify-content:space-between;padding:2px 4px 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-family:var(--font-body);font-weight:600}
+.kcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:7px;display:grid;gap:3px;cursor:grab}
+.kcard:active{cursor:grabbing}
+.kcard .cname{font-weight:600;font-size:13.5px}
+.kcard .ccomp{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kcard .cmeta{display:flex;gap:5px;flex-wrap:wrap;margin-top:3px}
+/* accounts */
+.acct{border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.acct+.acct{margin-top:8px}
+.acct summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.3fr) 90px 90px;gap:10px;align-items:center;padding:11px 14px}
+.acct summary::-webkit-details-marker{display:none}
+@media (max-width:700px){.acct summary{grid-template-columns:1fr 1fr}}
+.acct[open] summary{border-bottom:1px solid var(--line)}
+.acct .body{padding:12px 14px;display:grid;gap:10px;font-size:13px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:4px 12px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;overflow-wrap:anywhere}
+.acct .nm{font-weight:600;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* log */
+.feed{display:grid;gap:0}
+.day{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:14px 0 6px;display:flex;justify-content:space-between}
+.ev{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:10px;padding:9px 0;border-top:1px solid var(--line);align-items:start}
+.ev .t{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.ev .what{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ev .note{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.addlog{display:grid;grid-template-columns:140px minmax(0,1.4fr) minmax(0,1fr) minmax(0,1.4fr) auto;gap:10px;align-items:end}
+@media (max-width:860px){.addlog{grid-template-columns:1fr 1fr}}
+/* scorecard */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kpi .v{font-family:var(--font-mono);font-size:26px;font-weight:500;letter-spacing:-.02em}
+.kpi .l{color:var(--muted);font-size:12.5px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.mono{font-family:var(--font-mono)}
+.bar-g{fill:var(--ok)}.bar-y{fill:var(--due)}.bar-r{fill:var(--bad)}.bar-n{fill:var(--muted);opacity:.45}.bar-t{fill:var(--accent)}
+svg text{fill:var(--muted);font-family:var(--font-mono);font-size:11px}
+svg .tl{stroke:var(--fg);stroke-dasharray:5 4;opacity:.6}svg .fl{stroke:var(--due);stroke-dasharray:2 3}
+svg .ax{stroke:var(--line)}
+.fun{display:grid;grid-template-columns:110px 1fr 34px;gap:8px;align-items:center;font-size:13px;margin:5px 0}
+.fun i{display:block;height:10px;border-radius:99px;background:var(--accent);min-width:3px}
+.setgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+/* drawer + modal */
+.scrim{position:fixed;inset:0;background:rgba(10,18,24,.45);z-index:40}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(500px,100vw);background:var(--surface);z-index:41;box-shadow:var(--shadow);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.drawer header{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:grid;gap:6px}
+.drawer .dbody{overflow:auto;padding:14px 18px 28px;display:grid;gap:18px;padding-right:max(18px,env(safe-area-inset-right,0px))}
+.drawer h2{font-size:18px}
+.evgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fgrid .full{grid-column:1/-1}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:12px;z-index:42;padding:18px;box-shadow:var(--shadow);display:grid;gap:12px;max-height:90vh;overflow:auto}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:9px;display:flex;gap:14px;align-items:center;font-size:13.5px;box-shadow:var(--shadow);max-width:calc(100vw - 32px)}
+.toast.bad{background:var(--bad);color:#fff}
+.toast button{background:none;border:0;color:inherit;font-weight:700;text-decoration:underline;padding:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* linkedin */
+.cmp{display:grid;grid-template-columns:minmax(130px,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:10px 16px;align-items:center;font-size:13px}
+.cmp .h{color:var(--muted);font-size:12px;font-weight:600}
+.pbar{display:flex;align-items:center;gap:8px}
+.pbar b{font-family:var(--font-mono);font-weight:500;min-width:40px}
+.pbar span{flex:1;height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.pbar i{display:block;height:100%;background:var(--accent);border-radius:inherit}
+.pbar.alt i{background:var(--seg-a)}
+.tagsel{width:auto;padding:3px 6px;font-size:12.5px}
+td.snip{white-space:normal;min-width:220px;max-width:320px;text-align:left}
+.sigform{display:grid;grid-template-columns:130px 170px minmax(0,1.2fr) 120px minmax(0,1.2fr) auto;gap:10px;align-items:end}
+@media (max-width:980px){.sigform{grid-template-columns:1fr 1fr}}
+.stepper{display:inline-flex;align-items:center;gap:6px}
+.stepper b{font-family:var(--font-mono);min-width:22px;text-align:center;font-weight:500;font-size:16px}
+svg .mk{fill:var(--accent)}svg .mt{fill:var(--due)}
+@media (prefers-reduced-motion:no-preference){.drawer{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.4}}}
+</style>
+
+<div id="root"><div class="wrap" id="app"></div><div id="layer"></div><div id="toast" aria-live="polite"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="demo-backend.js"></script>
+<script>
+(function(){
+'use strict';
+var $=function(s,r){return (r||document).querySelector(s)};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+var OUTREACH=['Connect request sent','LinkedIn message sent','Email sent','Follow-up sent','Call made'];
+var EVENTS=OUTREACH.concat(['Connection accepted','Reply received','Meeting booked','Proposal sent','"No" received']);
+var STATUSES=['Target','Connect sent','Connected','Messaged','Emailed','Replied','Meeting','Proposal','Won','Lost','Nurture','Do not contact'];
+var CLOSED=['Won','Lost','Do not contact'];
+var SEG={A:'Financial services',C:'Retail',W:'Warm network'};
+var REASONS=['Not now / bad timing','Already has a provider','No budget','Wrong person or not their area','Other'];
+var EMAIL_STATUS=['To find','Public (company site)','Found (tool)','Verified','Bounced','Do not use'];
+var S={contacts:[],companies:[],activity:[],daily:{},settings:{daily:10,floor:4,connects:7,meetingsWeek:3,start:'2026-11-11',ltStart:'2026-11-10'},
+  li:{summary:null,daily:[],posts:[],audience:null},tags:{},signals:[],confirmSig:null,
+  loaded:{},tab:'today',seg:'all',q:'',openId:null,modal:null,openAcct:{},confirmDel:null,noDb:false,slow:false,logSeg:'all',logEv:'all',accSeg:'all',accTier:'all',pending:false};
+var db=null,dl=null,toastTimer=null,queues={};
+
+/* ---------- dates ---------- */
+function pad(n){return String(n).padStart(2,'0')}
+function fmt(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function parse(s){var p=s.split('-').map(Number);return new Date(p[0],p[1]-1,p[2])}
+function today(){return window.__today||fmt(new Date())}
+function addDays(s,n){var d=parse(s);d.setDate(d.getDate()+n);return fmt(d)}
+function bizDate(s,n){var r=addDays(s,n),w=parse(r).getDay();if(w===6)r=addDays(r,2);else if(w===0)r=addDays(r,1);return r}
+function isBiz(s){var w=parse(s).getDay();return w!==0&&w!==6}
+function weekStart(s){return addDays(s,-((parse(s).getDay()+6)%7))}
+function nice(s){return parse(s).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}
+function short(s){return parse(s).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
+function hhmm(ts){var d=new Date(ts);return pad(d.getHours())+':'+pad(d.getMinutes())}
+
+/* ---------- data helpers ---------- */
+function byId(id){for(var i=0;i<S.contacts.length;i++)if(S.contacts[i].id===id)return S.contacts[i];return null}
+function comp(id){for(var i=0;i<S.companies.length;i++)if(S.companies[i].id===id)return S.companies[i];return null}
+function safeLi(u){return /^https:\/\/([a-z0-9-]+\.)?linkedin\.com\//i.test(u||'')?u:''}
+function safeUrl(u){return /^https?:\/\//i.test(u||'')?u:''}
+function liSearch(c){return 'https://www.linkedin.com/search/results/people/?keywords='+encodeURIComponent(c.name+' '+(c.companyName||'').replace(/\(.*?\)/g,''))}
+function buildCounts(){var m={};S.activity.forEach(function(a){(m[a.date]=m[a.date]||{})[a.event]=((m[a.date]||{})[a.event]||0)+1});S.counts=m}
+function outreachOf(m){var n=0;OUTREACH.forEach(function(e){n+=(m&&m[e])||0});return n}
+function dayN(d){return outreachOf(S.counts[d])}
+function dayState(d,n){var T=today();if(d>T)return 'n';n=n==null?dayN(d):n;if(n>=S.settings.daily)return 'g';if(n>=S.settings.floor)return 'y';return d===T?'t':'r'}
+function isClosed(c){return CLOSED.indexOf(c.status)>-1}
+function primaryEvent(c){
+  switch(c.status){
+    case 'Target':return (c.origin==='Warm'||c.origin==='Intro')?'LinkedIn message sent':'Connect request sent';
+    case 'Connect sent':return 'Connection accepted';
+    case 'Connected':return 'LinkedIn message sent';
+    case 'Messaged':case 'Emailed':case 'Proposal':return 'Follow-up sent';
+    case 'Replied':return 'Meeting booked';
+    case 'Meeting':return 'Proposal sent';
+    case 'Nurture':return 'LinkedIn message sent';
+  }
+  return 'Follow-up sent';
+}
+function evLabel(e){return e==='"No" received'?'Got a "No"':e}
+function segChip(s){return '<span class="chip seg-'+esc(s)+'" title="'+esc(SEG[s]||s)+'">'+esc(s)+'</span>'}
+
+/* ---------- writes ---------- */
+function qwrite(path,fn){var p=(queues[path]||Promise.resolve()).catch(function(){}).then(fn);queues[path]=p;return p}
+function werr(e){toast((e&&e.code==='invalid_argument')?'Could not save. This view may be read-only.':'Could not save. Try again in a moment.','bad')}
+function upd(id,f){return qwrite('contacts/'+id,function(){return db.doc('contacts/'+id).update(f)})}
+function transition(c,ev,date,x){
+  var u={lastTouch:date},s;
+  switch(ev){
+    case 'Connect request sent':Object.assign(u,{status:'Connect sent',connectDate:date,step:0,nextAction:'Check if accepted; message them if yes',nextDate:bizDate(date,4)});break;
+    case 'Connection accepted':Object.assign(u,{status:'Connected',nextAction:'Send first message (about their work, not a pitch)',nextDate:date});break;
+    case 'LinkedIn message sent':Object.assign(u,{status:'Messaged',msgDate:date,step:1,nextAction:'Follow-up 1 (a concrete use case)',nextDate:bizDate(date,3)});break;
+    case 'Email sent':Object.assign(u,{status:'Emailed',emailDate:date,step:1,nextAction:'Follow-up 1 (a concrete use case)',nextDate:bizDate(date,3)});break;
+    case 'Follow-up sent':
+      s=(c.step||1)+1;
+      if(s===2)Object.assign(u,{step:2,nextAction:'Follow-up 2 (a concrete use case)',nextDate:bizDate(date,4)});
+      else if(s===3)Object.assign(u,{step:3,nextAction:'Closing-the-loop message',nextDate:bizDate(date,7)});
+      else Object.assign(u,{step:4,status:'Nurture',nextAction:'Revisit: any news or a new use case?',nextDate:bizDate(date,60)});
+      break;
+    case 'Call made':Object.assign(u,{nextAction:'Log what came out of the call',nextDate:bizDate(date,2)});break;
+    case 'Reply received':Object.assign(u,{status:'Replied',replied:'Yes',nextAction:'Answer within 24 h',nextDate:date});break;
+    case 'Meeting booked':Object.assign(u,{status:'Meeting',nextAction:'Put the meeting date in notes; prepare 3 discovery questions',nextDate:bizDate(date,1)});break;
+    case 'Proposal sent':Object.assign(u,{status:'Proposal',step:1,nextAction:'Proposal follow-up (day 3)',nextDate:bizDate(date,3)});break;
+    case '"No" received':Object.assign(u,{status:'Lost',outcome:(x&&x.note)||'',nextAction:'',nextDate:null,replied:'Yes'});break;
+  }
+  return u;
+}
+async function logAction(c,ev,x){
+  x=x||{};var date=x.date||today(),u=transition(c,ev,date,x),prev={};
+  Object.keys(u).forEach(function(k){prev[k]=c[k]===undefined?null:c[k]});
+  try{
+    var ref=await db.collection('activity').add({date:date,contactId:c.id,contactName:c.name,company:c.companyName||'',seg:c.seg||'',event:ev,note:x.note||'',ts:Date.now()});
+    await upd(c.id,u);
+    toast(evLabel(ev)+': '+c.name,'ok',async function(){
+      try{await db.doc('activity/'+ref.id).delete();await upd(c.id,prev)}catch(e){werr(e)}
+    });
+  }catch(e){werr(e)}
+}
+async function setField(id,k,v){try{var o={};o[k]=v;await upd(id,o)}catch(e){werr(e)}}
+async function setStatus(id,status){
+  var f={status:status};if(CLOSED.indexOf(status)>-1){f.nextDate=null;f.nextAction=''}
+  try{await upd(id,f)}catch(e){werr(e)}
+}
+async function snooze(c){try{await upd(c.id,{nextDate:bizDate(today(),1)});toast('Moved to '+nice(bizDate(today(),1))+': '+c.name,'ok')}catch(e){werr(e)}}
+async function saveDaily(k,v){
+  var T=today(),cur=Object.assign({},S.daily[T]||{});cur[k]=v;cur.date=T;
+  try{await qwrite('daily/'+T,function(){return db.doc('daily/'+T).set(cur)})}catch(e){werr(e)}
+}
+async function saveSetting(k,v){
+  var n=Math.max(0,Math.round(Number(v)||0)),cur=Object.assign({},S.settings);cur[k]=(k==='start'||k==='ltStart')?v:n;
+  try{await qwrite('settings/targets',function(){return db.doc('settings/targets').set(cur)})}catch(e){werr(e)}
+}
+async function delActivity(id){
+  var a=S.activity.filter(function(x){return x._id===id})[0];
+  try{await db.doc('activity/'+id).delete();toast('Entry removed. The contact keeps its current status.','ok')}catch(e){werr(e)}
+}
+async function addManual(f){
+  var c=byId(f.cid);if(!c)return;
+  try{await db.collection('activity').add({date:f.date,contactId:c.id,contactName:c.name,company:c.companyName||'',seg:c.seg||'',event:f.ev,note:f.note||'',ts:Date.now()});
+    toast('Added to the log (the contact record is unchanged).','ok')}catch(e){werr(e)}
+}
+async function addContact(f){
+  var max=0;S.contacts.forEach(function(c){var n=parseInt(String(c.id).replace(/\D/g,''),10);if(n>max)max=n});
+  var id='P-'+String(max+1).padStart(3,'0'),co=comp(f.companyId);
+  var doc={id:id,companyId:f.companyId,companyName:co?co.name:'',seg:co?co.seg:'',name:f.name,title:f.title,role:f.role||'Other',priority:Number(f.priority)||2,li:safeLi(f.li),degree:'',
+    email:'',emailStatus:'To find',origin:f.origin,lang:'ES',status:'Target',connectDate:null,msgDate:null,emailDate:null,lastTouch:null,
+    nextAction:f.origin==='Cold'?'Send LinkedIn connection request':'Send first message',nextDate:today(),replied:'',notes:f.notes||'',outcome:'',step:0,source:'Added in Outreach Desk',verified:today()};
+  try{await db.doc('contacts/'+id).set(doc);S.modal=null;S.openId=id;toast('Added '+f.name,'ok');render()}catch(e){werr(e)}
+}
+
+/* ---------- toast ---------- */
+function toast(msg,kind,undo){
+  var t=$('#toast');clearTimeout(toastTimer);
+  t.innerHTML='<div class="toast '+(kind==='bad'?'bad':'')+'"><span>'+esc(msg)+'</span>'+(undo?'<button type="button" data-act="undo">Undo</button>':'')+'</div>';
+  S.undo=undo||null;
+  toastTimer=setTimeout(function(){t.innerHTML='';S.undo=null},undo?9000:5000);
+}
+
+/* ---------- views ---------- */
+function shortName(n){return String(n||'').replace(/\s*\(.*?\)\s*/g,' ').replace(/\b(Correduría de Seguros( y Reaseguros)?|Correduría|S\.?L\.?U?\.?|S\.?A\.?U?\.?)\b/gi,'').replace(/\s+/g,' ').trim()||n}
+function dueChip(c){
+  if(!c.nextDate||isClosed(c))return '';var T=today();
+  if(c.nextDate<T)return '<span class="chip bad">overdue '+esc(short(c.nextDate))+'</span>';
+  if(c.nextDate===T)return '<span class="chip due">today</span>';
+  return '<span class="chip">'+esc(short(c.nextDate))+'</span>';
+}
+function shell(){
+  var T=today(),n=dayN(T),st=dayState(T,n),dotc=st==='g'?'g':(st==='y'?'y':'');
+  var dueCount=S.contacts.filter(function(c){return c.nextDate&&c.nextDate<=T&&!isClosed(c)}).length;
+  var tabs=[['today','Today',dueCount],['pipeline','Pipeline',S.contacts.length],['accounts','Accounts',S.companies.length],['log','Log',null],['scorecard','Scorecard',null],['linkedin','LinkedIn',null]];
+  var h='<div class="top"><div class="bar"><div class="brand"><h1>Outreach Desk</h1><span class="date">'+esc(nice(T))+'</span></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="pill"><span class="dot '+dotc+'"></span>Outreach today <b>'+n+' / '+S.settings.daily+'</b></span>'+
+    (S.dl?'<button class="btn" type="button" data-act="export">Export CSV</button>':'')+'</div></div>'+
+    '<nav class="tabs" aria-label="Sections">'+tabs.map(function(t){return '<button class="tab" type="button" data-act="tab" data-v="'+t[0]+'"'+(S.tab===t[0]?' aria-current="page"':'')+'>'+t[1]+(t[2]!=null?'<span class="n">'+t[2]+'</span>':'')+'</button>'}).join('')+'</nav></div>';
+  var body;
+  if(S.noDb)body='<div class="empty"><b>The data store is not available in this view</b>This browser blocked local storage, so the demo cannot keep data. Allow site storage for this page and reload.</div>';
+  else if(!S.loaded.contacts)body='<div class="empty"><b>Loading the pipeline…</b>'+(S.slow?'The data store has not answered yet. Anything shown may be out of date.':'Reading contacts, accounts and your log.')+'</div>';
+  else if(!S.contacts.length)body='<div class="empty"><b>No contacts yet</b>Add the first one from the Pipeline tab, or reload with ?reset to restore the demo data.</div>';
+  else body=S.tab==='today'?viewToday():S.tab==='pipeline'?viewPipeline():S.tab==='accounts'?viewAccounts():S.tab==='log'?viewLog():S.tab==='linkedin'?viewLinkedIn():viewScore();
+  return h+'<main id="main">'+body+'</main>';
+}
+function agendaRow(c){
+  var pe=primaryEvent(c),li=safeLi(c.li);
+  return '<li class="arow"><div class="who">'+segChip(c.seg)+'<button type="button" class="link" data-act="open" data-id="'+esc(c.id)+'">'+esc(c.name)+'</button>'+
+    (c.degree?'<span class="chip mono" title="LinkedIn connection degree">'+esc(c.degree)+'</span>':'')+(c.priority===1?'<span class="chip">P1</span>':'')+'</div>'+
+    '<div class="meta">'+esc(c.title)+(c.companyName?' · '+esc(shortName(c.companyName)):'')+'</div>'+
+    '<div class="next">'+dueChip(c)+'<span>'+esc(c.nextAction||'Decide the next step')+'</span></div>'+
+    '<div class="btns"><button type="button" class="btn primary" data-act="ev" data-id="'+esc(c.id)+'" data-ev="'+esc(pe)+'">'+esc(evLabel(pe))+'</button>'+
+    '<button type="button" class="btn" data-act="ev" data-id="'+esc(c.id)+'" data-ev="Reply received">Reply</button>'+
+    '<button type="button" class="btn" data-act="no" data-id="'+esc(c.id)+'">No</button>'+
+    '<button type="button" class="btn ghost" data-act="snooze" data-id="'+esc(c.id)+'" title="Move to next working day">Snooze</button>'+
+    '<a class="ext" target="_blank" rel="noopener" href="'+esc(li||liSearch(c))+'">'+(li?'Profile ↗':'Find ↗')+'</a></div></li>';
+}
+function coachLine(T){
+  var s=S.settings,n=dayN(T),days=[],d=addDays(T,-1),guard=0;
+  while(guard++<20&&d>=s.start){if(isBiz(d)){if(dayN(d)<s.daily)days.push(d);else break}d=addDays(d,-1)}
+  var hour=new Date().getHours();
+  if(!isBiz(T))return null;
+  if(T<s.start)return {t:'The scorecard starts '+nice(s.start)+'. That day\'s list is ready: '+S.contacts.filter(function(c){return c.nextDate===s.start}).length+' contacts.',ok:true};
+  if(n>=s.daily)return {t:'Target hit: '+n+' of '+s.daily+'. Write the 6 p.m. recap and count every "No" as a win.',ok:true};
+  if(days.length>=2)return {t:days.length+' working days in a row under target ('+days.slice(0,3).map(function(x){return dayN(x)}).reverse().join(', ')+'). What is the real blocker? Write it in the recap. If today is hard, the floor is '+s.floor+'.'};
+  if(n===0&&hour>=14)return {t:'Nothing logged yet today. The floor is '+s.floor+': send the first one now, then decide how far to go.'};
+  if(n>0&&n<s.floor)return {t:(s.floor-n)+' more to clear the floor, '+(s.daily-n)+' more to hit target.'};
+  if(n>=s.floor)return {t:'Floor cleared. '+(s.daily-n)+' more to hit target.',ok:true};
+  return null;
+}
+function viewToday(){
+  var T=today(),st=S.settings,n=dayN(T),pct=Math.min(100,n/Math.max(1,st.daily)*100);
+  var due=S.contacts.filter(function(c){return c.nextDate&&c.nextDate<=T&&!isClosed(c)});
+  due.sort(function(a,b){return (a.nextDate<T?0:1)-(b.nextDate<T?0:1)||a.priority-b.priority||String(a.id).localeCompare(b.id)});
+  var segs=['A','C','W'].map(function(g){var tot=due.filter(function(c){return c.seg===g}).length;
+    var done=S.activity.filter(function(a){return a.date===T&&a.seg===g&&OUTREACH.indexOf(a.event)>-1}).length;
+    return '<span class="chip seg-'+g+'">'+g+' · '+esc(SEG[g])+': '+done+' sent, '+tot+' due</span>'}).join('');
+  var co=coachLine(T);
+  var hero='<section class="hero"><div class="card"><h2>Today\'s outreach</h2><div class="big">'+n+' <small>/ '+st.daily+'</small></div>'+
+    '<div class="meter" role="img" aria-label="'+n+' of '+st.daily+' outreach actions"><i style="width:'+pct+'%"></i><s style="left:'+(st.floor/Math.max(1,st.daily)*100)+'%"></s><span style="left:'+(st.floor/Math.max(1,st.daily)*100)+'%">floor '+st.floor+'</span><span style="left:100%;transform:translateX(-100%)">target '+st.daily+'</span></div>'+
+    '<div class="streams">'+segs+'</div></div>'+
+    '<div class="card"><h2>Coach</h2>'+(co?'<div class="coach'+(co.ok?' ok':'')+'">'+esc(co.t)+'</div>':'<p class="sub">Nothing to flag.</p>')+
+    '<p class="sub" style="margin-top:10px">Connects per day planned: '+st.connects+' (segment A) plus about 3 for segment C and 1 warm ask.</p></div></section>';
+  var agenda;
+  if(due.length){
+    var groups=['A','C','W'].map(function(g){var l=due.filter(function(c){return c.seg===g});
+      if(!l.length)return '';
+      return '<div><div class="grouphead"><h3>'+segChip(g)+' '+esc(SEG[g])+'</h3><span class="sub">'+l.length+' due</span></div><ul class="agenda">'+l.map(agendaRow).join('')+'</ul></div>'}).join('');
+    var other=due.filter(function(c){return ['A','C','W'].indexOf(c.seg)<0});
+    agenda='<section class="card"><h2>Due today ('+due.length+')</h2><div style="display:grid;gap:16px">'+groups+(other.length?'<ul class="agenda">'+other.map(agendaRow).join('')+'</ul>':'')+'</div></section>';
+  }else{
+    var nxt=S.contacts.filter(function(c){return c.nextDate&&c.nextDate>T&&!isClosed(c)}).map(function(c){return c.nextDate}).sort()[0];
+    agenda='<section class="empty"><b>Nothing due today</b>'+(nxt?'Next up: '+esc(nice(nxt))+', '+S.contacts.filter(function(c){return c.nextDate===nxt&&!isClosed(c)}).length+' contacts. Open the Pipeline to work ahead.':'Add the next step to a contact to see it here.')+'</section>';
+  }
+  var dates={};S.contacts.forEach(function(c){if(c.nextDate&&c.nextDate>T&&!isClosed(c))(dates[c.nextDate]=dates[c.nextDate]||[]).push(c)});
+  var ds=Object.keys(dates).sort().slice(0,5);
+  var up=ds.length?'<section class="card"><h2>Coming up</h2><div class="upcoming">'+ds.map(function(d){var l=dates[d];
+    return '<div class="up"><div><b>'+esc(nice(d))+'</b><div class="sub">'+l.length+' contacts</div></div><div>'+l.slice(0,6).map(function(c){return '<button type="button" class="link" data-act="open" data-id="'+esc(c.id)+'">'+esc(c.name)+'</button>'}).join(' · ')+(l.length>6?' · +'+(l.length-6)+' more':'')+'</div></div>'}).join('')+'</div></section>':'';
+  var dd=S.daily[T]||{};
+  var goals='<section class="row2"><div class="card"><h2>9 a.m. goals</h2><div class="goalgrid">'+
+    '<label>Outreach to send<input type="number" id="d-goal" min="0" data-daily="goalOutreach" value="'+esc(dd.goalOutreach!=null?dd.goalOutreach:st.daily)+'"></label>'+
+    '<label>The hard thing I will not avoid<input type="text" id="d-hard" data-daily="hardThing" value="'+esc(dd.hardThing||'')+'" placeholder="e.g. message the CEO of UNOde50"></label></div></div>'+
+    '<div class="card"><h2>6 p.m. recap</h2><div class="goalgrid">'+
+    '<label>What I avoided, or the real blocker<textarea id="d-block" data-daily="recapBlocker" placeholder="One honest line">'+esc(dd.recapBlocker||'')+'</textarea></label>'+
+    '<label>Tomorrow\'s first task<input type="text" id="d-first" data-daily="recapFirst" value="'+esc(dd.recapFirst||'')+'"></label></div></div>'+liTodayCard(dd)+'</section>';
+  return hero+agenda+goals+up;
+}
+function filtered(){
+  var q=S.q.trim().toLowerCase();
+  return S.contacts.filter(function(c){
+    if(S.seg!=='all'&&c.seg!==S.seg)return false;
+    if(q&&(c.name+' '+c.title+' '+c.companyName+' '+c.notes).toLowerCase().indexOf(q)<0)return false;
+    return true;
+  });
+}
+function boardHTML(){
+  var list=filtered(),T=today();
+  return '<div class="board">'+STATUSES.filter(function(s){return s!=='Do not contact'}).map(function(s){
+    var l=list.filter(function(c){return c.status===s}).sort(function(a,b){return a.priority-b.priority||String(a.id).localeCompare(b.id)});
+    return '<section class="col" data-status="'+esc(s)+'"><h3><span>'+esc(s)+'</span><span class="mono">'+l.length+'</span></h3>'+l.map(function(c){
+      return '<article class="kcard" draggable="true" data-id="'+esc(c.id)+'"><button type="button" class="link cname" data-act="open" data-id="'+esc(c.id)+'">'+esc(c.name)+'</button>'+
+        '<div class="ccomp">'+esc(shortName(c.companyName))+'</div><div class="cmeta">'+segChip(c.seg)+'<span class="chip">P'+esc(c.priority)+'</span>'+(c.degree==='2nd'?'<span class="chip mono">2nd</span>':'')+dueChip(c)+'</div></article>'}).join('')+'</section>'}).join('')+'</div>';
+}
+function segFilters(cur,act){
+  return '<div class="filters">'+[['all','All']].concat(['A','C','W'].map(function(g){return [g,g+' · '+SEG[g]]})).map(function(p){
+    return '<button type="button" class="fbtn" data-act="'+act+'" data-v="'+p[0]+'" aria-pressed="'+(cur===p[0])+'">'+esc(p[1])+'</button>'}).join('')+'</div>';
+}
+function viewPipeline(){
+  return '<section class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;align-items:center">'+segFilters(S.seg,'seg')+
+    '<div style="display:flex;gap:8px;flex:1;min-width:220px;justify-content:flex-end"><input type="search" id="q" placeholder="Search name, company, notes" value="'+esc(S.q)+'" style="max-width:300px"><button type="button" class="btn primary" data-act="addC">Add contact</button></div></div>'+
+    '<p class="sub" style="margin:10px 0 0">Drag a card to change its status, or open it to log actions. Dragging does not write to the log.</p></section>'+
+    '<div id="pipeBody">'+boardHTML()+'</div>';
+}
+function viewAccounts(){
+  var list=S.companies.filter(function(c){return (S.accSeg==='all'||c.seg===S.accSeg)&&(S.accTier==='all'||String(c.tier)===S.accTier)});
+  list.sort(function(a,b){return String(a.seg).localeCompare(b.seg)||a.tier-b.tier||String(a.id).localeCompare(b.id)});
+  var tiers='<div class="filters">'+[['all','All tiers'],['1','Tier 1'],['2','Tier 2'],['3','Tier 3'],['0','Client / hub']].map(function(p){return '<button type="button" class="fbtn" data-act="accTier" data-v="'+p[0]+'" aria-pressed="'+(S.accTier===p[0])+'">'+p[1]+'</button>'}).join('')+'</div>';
+  var rows=list.map(function(c){
+    var cs=S.contacts.filter(function(p){return p.companyId===c.id});
+    var size=c.liSize+(c.liMembers!=null&&c.liMembers!==''?' · '+c.liMembers+' profiles':'');
+    return '<details class="acct" data-aid="'+esc(c.id)+'"'+(S.openAcct[c.id]?' open':'')+'><summary><div class="nm">'+segChip(c.seg)+'<span>'+esc(c.name)+'</span></div>'+
+      '<div class="sub">'+esc(c.loc)+'</div><div><span class="chip">'+(c.tier===0?'Hub':'Tier '+c.tier)+'</span></div><div class="mono sub">'+cs.length+' contact'+(cs.length===1?'':'s')+'</div></summary>'+
+      '<div class="body"><dl class="kv"><dt>Size evidence</dt><dd>'+esc(size||'n/a')+(c.otherSize?'<br>'+esc(c.otherSize):'')+'</dd>'+
+      '<dt>Context</dt><dd>'+esc(c.context||'')+'</dd>'+(c.notes?'<dt>Notes</dt><dd>'+esc(c.notes)+'</dd>':'')+
+      '<dt>Links</dt><dd>'+(safeUrl(c.web)?'<a class="ext" target="_blank" rel="noopener" href="'+esc(c.web)+'">Website ↗</a> ':'')+(safeLi(c.liUrl)?'<a class="ext" target="_blank" rel="noopener" href="'+esc(c.liUrl)+'">LinkedIn page ↗</a>':'')+(!safeUrl(c.web)&&!safeLi(c.liUrl)?'none yet':'')+'</dd>'+
+      (c.genericEmail?'<dt>Generic email</dt><dd class="mono">'+esc(c.genericEmail)+'</dd>':'')+
+      '<dt>Source</dt><dd>'+esc(c.source)+(c.verified?' · checked '+esc(c.verified):'')+'</dd></dl>'+
+      '<div>'+(cs.length?cs.map(function(p){return '<button type="button" class="btn" style="margin:0 6px 6px 0" data-act="open" data-id="'+esc(p.id)+'">'+esc(p.name)+' <span class="sub">· '+esc(p.status)+'</span></button>'}).join(''):'<span class="sub">No contacts yet for this account.</span>')+'</div></div></details>'}).join('');
+  return '<section class="card" style="display:grid;gap:10px">'+segFilters(S.accSeg,'accSeg')+tiers+
+    '<p class="sub" style="margin:0">LinkedIn size is the range each company chose for itself; profiles are people linked to the page. Neither is a headcount. Tier 1: size in or near 30–300 and contacts mapped. Tier 2: size unverified or contacts missing. Tier 3: likely too small, too large, or outside your target city.</p></section>'+
+    (rows||'<div class="empty"><b>No accounts match</b>Clear a filter.</div>');
+}
+function viewLog(){
+  var T=today(),list=S.activity.filter(function(a){return (S.logSeg==='all'||a.seg===S.logSeg)&&(S.logEv==='all'||a.event===S.logEv)});
+  var byDay={};list.forEach(function(a){(byDay[a.date]=byDay[a.date]||[]).push(a)});
+  var feed=Object.keys(byDay).sort().reverse().map(function(d){var l=byDay[d];
+    return '<div class="day"><span>'+esc(nice(d))+'</span><span class="mono">'+outreachOf(S.counts[d])+' outreach</span></div>'+l.map(function(a){
+      var ask=S.confirmDel===a._id;
+      return '<div class="ev"><span class="t">'+(a.ts?hhmm(a.ts):'')+'</span><div><div class="what"><span class="chip'+(a.event==='Reply received'||a.event==='Meeting booked'?' ok':'')+'">'+esc(evLabel(a.event))+'</span>'+
+        '<button type="button" class="link" data-act="open" data-id="'+esc(a.contactId)+'">'+esc(a.contactName)+'</button>'+(a.seg?segChip(a.seg):'')+'<span class="sub">'+esc(shortName(a.company))+'</span></div>'+(a.note?'<div class="note">'+esc(a.note)+'</div>':'')+'</div>'+
+        '<button type="button" class="btn ghost'+(ask?' danger':'')+'" data-act="'+(ask?'delAct':'askDel')+'" data-id="'+esc(a._id)+'">'+(ask?'Confirm remove':'Remove')+'</button></div>'}).join('')}).join('');
+  var opts=['A','C','W'].map(function(g){return '<optgroup label="'+esc(g+' · '+SEG[g])+'">'+S.contacts.filter(function(c){return c.seg===g}).map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.name)+' — '+esc(shortName(c.companyName))+'</option>'}).join('')+'</optgroup>'}).join('');
+  return '<section class="card"><h2>Add a past entry</h2><div class="addlog"><label>Date<input type="date" id="l-date" value="'+esc(T)+'"></label>'+
+    '<label>Contact<select id="l-c">'+opts+'</select></label><label>Event<select id="l-e">'+EVENTS.map(function(e){return '<option>'+esc(e)+'</option>'}).join('')+'</select></label>'+
+    '<label>Note<input type="text" id="l-n" placeholder="Optional"></label><button type="button" class="btn primary" data-act="addLog">Add</button></div>'+
+    '<p class="sub" style="margin:8px 0 0">Entries added here count toward the scorecard but do not change the contact. To move a contact on, use its drawer.</p></section>'+
+    '<section class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between"><h2 style="margin:0">Activity log <span class="sub mono">'+list.length+'</span></h2>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+segFilters(S.logSeg,'logSeg')+'<select id="l-f" style="width:auto"><option value="all">All events</option>'+EVENTS.map(function(e){return '<option'+(S.logEv===e?' selected':'')+' value="'+esc(e)+'">'+esc(evLabel(e))+'</option>'}).join('')+'</select></div></div>'+
+    '<div class="feed">'+(feed||'<div class="empty" style="margin-top:12px"><b>Nothing logged yet</b>Log your first action from the Today tab. It appears here, newest first.</div>')+'</div></section>';
+}
+function chartSVG(days){
+  var W=680,H=210,pl=34,pr=12,pt=18,pb=30,s=S.settings,n=days.length||1,max=Math.max(s.daily+3,5);
+  days.forEach(function(d){if(d.n+1>max)max=d.n+1});
+  var step=(W-pl-pr)/n,bw=Math.min(34,step*.62),y=function(v){return H-pb-(v/max)*(H-pt-pb)};
+  var o='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Daily outreach against target and floor"><line class="ax" x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(0)+'" y2="'+y(0)+'"/>';
+  o+='<line class="tl" x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(s.daily)+'" y2="'+y(s.daily)+'"/><text x="'+(pl-6)+'" y="'+(y(s.daily)+4)+'" text-anchor="end">'+s.daily+'</text>';
+  o+='<line class="fl" x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(s.floor)+'" y2="'+y(s.floor)+'"/><text x="'+(pl-6)+'" y="'+(y(s.floor)+4)+'" text-anchor="end">'+s.floor+'</text><text x="'+(pl-6)+'" y="'+(y(0)+4)+'" text-anchor="end">0</text>';
+  days.forEach(function(d,i){var x=pl+i*step+(step-bw)/2,h=Math.max(d.n>0?2:0,y(0)-y(d.n)),cls={g:'bar-g',y:'bar-y',r:'bar-r',n:'bar-n',t:'bar-t'}[d.st];
+    o+='<rect class="'+cls+'" x="'+x+'" y="'+(y(0)-h)+'" width="'+bw+'" height="'+h+'" rx="3"><title>'+esc(nice(d.d))+': '+d.n+' outreach</title></rect>';
+    if(d.n>0)o+='<text x="'+(x+bw/2)+'" y="'+(y(0)-h-4)+'" text-anchor="middle">'+d.n+'</text>';
+    if(n<=16||i%2===0)o+='<text x="'+(x+bw/2)+'" y="'+(H-10)+'" text-anchor="middle">'+parse(d.d).getDate()+'</text>'});
+  return o+'</svg>';
+}
+function viewScore(){
+  var T=today(),s=S.settings,days=[],d=s.start,end=T>s.start?T:s.start;
+  while(d<=end){if(isBiz(d))days.push({d:d,n:dayN(d),st:dayState(d)});d=addDays(d,1)}
+  var recent=days.slice(-14),done=days.filter(function(x){return x.d<=T});
+  var wk=weekStart(T),wkAct=S.activity.filter(function(a){return a.date>=wk&&a.date<=addDays(wk,6)});
+  var cnt=function(e){return wkAct.filter(function(a){return a.event===e}).length};
+  var wOut=wkAct.filter(function(a){return OUTREACH.indexOf(a.event)>-1}).length,wRep=cnt('Reply received'),wMeet=cnt('Meeting booked'),wNo=cnt('"No" received');
+  var gy=done.filter(function(x){return x.st==='g'}).length,yy=done.filter(function(x){return x.st==='y'}).length,rr=done.filter(function(x){return x.st==='r'}).length;
+  var kp=function(v,l){return '<div class="kpi"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>'};
+  var kpis='<section class="kpis">'+kp(wOut+' <span class="sub">/ '+(s.daily*5)+'</span>','Outreach this week')+kp(wRep,'Replies this week')+kp(wMeet+' <span class="sub">/ '+s.meetingsWeek+'</span>','Meetings booked this week')+kp(wNo,'"No"s this week (wins)')+kp(gy+' · '+yy+' · '+rr,'Days green · yellow · red')+'</section>';
+  var chart='<section class="card"><h2>Daily outreach vs target</h2>'+chartSVG(recent)+'<p class="sub" style="margin:6px 0 0">Dashed line: target. Dotted line: floor. Green hit the target, amber cleared the floor, red fell below it.</p></section>';
+  var evCols=['Connect request sent','LinkedIn message sent','Email sent','Follow-up sent','Call made'];
+  var tbl='<section class="card"><h2>Last working days</h2><div class="tablewrap"><table><thead><tr><th>Day</th><th>Connect</th><th>Message</th><th>Email</th><th>Follow-up</th><th>Call</th><th>Total</th><th>Replies</th><th>Meetings</th><th>"No"s</th><th>Status</th></tr></thead><tbody>'+
+    recent.slice().reverse().map(function(x){var m=S.counts[x.d]||{};var lab={g:'<span class="chip ok">target</span>',y:'<span class="chip due">floor</span>',r:'<span class="chip bad">below floor</span>',n:'<span class="chip">upcoming</span>',t:'<span class="chip">in progress</span>'}[x.st];
+      return '<tr><td>'+esc(nice(x.d))+'</td>'+evCols.map(function(e){return '<td class="mono">'+(m[e]||0)+'</td>'}).join('')+'<td class="mono"><b>'+x.n+'</b></td><td class="mono">'+(m['Reply received']||0)+'</td><td class="mono">'+(m['Meeting booked']||0)+'</td><td class="mono">'+(m['"No" received']||0)+'</td><td>'+lab+'</td></tr>'}).join('')+'</tbody></table></div></section>';
+  var counts={};S.contacts.forEach(function(c){counts[c.status]=(counts[c.status]||0)+1});
+  var mx=Math.max.apply(null,STATUSES.map(function(k){return counts[k]||0}).concat([1]));
+  var fun='<section class="card"><h2>Pipeline by status</h2>'+STATUSES.map(function(k){return '<div class="fun"><span>'+esc(k)+'</span><span><i style="width:'+((counts[k]||0)/mx*100)+'%;'+((counts[k]||0)?'':'opacity:.15')+'"></i></span><span class="mono">'+(counts[k]||0)+'</span></div>'}).join('')+'</section>';
+  var allOut=S.activity.filter(function(a){return OUTREACH.indexOf(a.event)>-1}).length,allRep=S.activity.filter(function(a){return a.event==='Reply received'}).length;
+  var rates='<section class="card"><h2>Funnel so far</h2><dl class="kv"><dt>Outreach sent</dt><dd class="mono">'+allOut+'</dd><dt>Replies</dt><dd class="mono">'+allRep+(allOut?' ('+(allRep/allOut*100).toFixed(1)+'%)':'')+'</dd><dt>Meetings</dt><dd class="mono">'+S.activity.filter(function(a){return a.event==='Meeting booked'}).length+'</dd><dt>Proposals</dt><dd class="mono">'+S.activity.filter(function(a){return a.event==='Proposal sent'}).length+'</dd><dt>"No"s</dt><dd class="mono">'+S.activity.filter(function(a){return a.event==='"No" received'}).length+'</dd></dl>'+
+    '<p class="sub" style="margin:8px 0 0">Judge activity, not results, until there is volume. Rule of thumb: 3–8% of cold emails reply (unverified).</p></section>';
+  var sets='<section class="card"><h2>Targets</h2><div class="setgrid">'+[['daily','Daily outreach target'],['floor','Daily floor'],['connects','New connects per day'],['meetingsWeek','Meetings per week']].map(function(p){return '<label>'+p[1]+'<input type="number" min="0" data-set="'+p[0]+'" value="'+esc(s[p[0]])+'"></label>'}).join('')+'</div></section>';
+  return kpis+chart+'<div class="row2">'+fun+rates+'</div>'+tbl+sets;
+}
+
+/* ---------- linkedin ---------- */
+var SIG_TYPES=['Inbound DM','Connection request','Comment on my post','Meeting from LinkedIn','Profile change','Post published'];
+var TAG_OPTS={lang:['','ES','EN'],format:['','Clip','Original','Case','Repost','Event'],topic:['','Adoption','AI news','Personal','Event','Kadou']};
+function num(v){return Number(String(v==null?'':v).replace(/[^0-9.\-]/g,''))||0}
+function nf(n){return Number(n||0).toLocaleString('en-GB')}
+function pct1(a,b){return b?(a/b*100).toFixed(1)+'%':'n/a'}
+function mdyIso(s){var p=String(s||'').split('/');if(p.length!==3)return '';return p[2]+'-'+pad(Number(p[0]))+'-'+pad(Number(p[1]))}
+function slugText(u){var m=String(u||'').match(/\/posts\/[^_\/]+_(.+?)-(?:ugcPost|share)-\d+/),t=m?m[1]:'';try{t=decodeURIComponent(t)}catch(e){}t=t.replace(/-/g,' ').trim();return t?t.charAt(0).toUpperCase()+t.slice(1)+'…':'(post)'}
+function postId(u){var m=String(u||'').match(/(?:ugcPost|share)-(\d{12,})/);return m?m[1]:''}
+function liInc(k,d){
+  var T=today(),cur=Number((S.daily[T]||{})[k])||0,v=Math.max(0,cur+d);
+  if(v===cur)return;saveDaily(k,v);
+}
+function liTodayCard(dd){
+  var p=Number(dd.liPosts)||0,c=Number(dd.liComments)||0,ok=p>=1||c>=3;
+  var step=function(k,v,l){return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span>'+l+'</span><span class="stepper"><button type="button" class="btn" data-act="liInc" data-k="'+k+'" data-d="-1" aria-label="One less">−</button><b>'+v+'</b><button type="button" class="btn" data-act="liInc" data-k="'+k+'" data-d="1" aria-label="One more">+</button></span></div>'};
+  return '<div class="card"><h2>LinkedIn today</h2><div class="goalgrid">'+step('liPosts',p,'Posts published')+step('liComments',c,'Meaningful comments')+
+    '<div>'+(ok?'<span class="chip ok">LinkedIn floor met</span>':'<span class="chip due">Floor: 1 post or 3 comments</span>')+'</div></div></div>';
+}
+async function saveTag(pid,k,v){
+  var cur=Object.assign({},S.tags[pid]||{});cur[k]=v;
+  try{await qwrite('postTags/'+pid,function(){return db.doc('postTags/'+pid).set(cur)})}catch(e){werr(e)}
+}
+async function addSignal(f){
+  try{await db.collection('signals').add({date:f.date,type:f.type,who:f.who,fit:f.fit,note:f.note,ts:Date.now()});toast('Signal added.','ok')}catch(e){werr(e)}
+}
+async function delSignal(id){try{await db.doc('signals/'+id).delete();toast('Signal removed.','ok')}catch(e){werr(e)}}
+function audStat(list,fn){var s=0;(list||[]).forEach(function(x){if(fn(x))s+=(x.pct||0)});return s}
+function audMetrics(list){
+  var m=function(cat,re){return audStat(list,function(x){return x.cat===cat&&re.test(x.value)})};
+  return [
+    ['In Madrid',m('Location',/madrid/i),'The city you sell in.'],
+    ['Companies of 51–500 people',m('Company size',/^(51-200|201-500) employees/i),'Your target company size.'],
+    ['Financial services',m('Industry',/financial services|insurance/i),'Includes insurance, segment A.'],
+    ['Decision-maker seniority',m('Seniority',/^(CXO|Owner|Director|VP|Partner)$/i),'CXO, owner, director, VP, partner.'],
+    ['Ops, HR or IT titles',m('Job title',/operat|human|people|\bhr\b|information tech|\bit\b|chief operating|coo|managing director/i),'The buyers you target.']
+  ];
+}
+function liChart(days,marks){
+  var W=680,H=200,pl=40,pr=10,pt=26,pb=26,n=days.length||1,max=1;
+  days.forEach(function(d){if(d.imp>max)max=d.imp});
+  max=Math.ceil(max/50)*50;
+  var step=(W-pl-pr)/n,bw=Math.max(2,step*.78),y=function(v){return H-pb-(v/max)*(H-pt-pb)},idx={};
+  days.forEach(function(d,i){idx[d.d]=i});
+  var o='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Daily impressions with posts and profile changes marked"><line class="ax" x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(0)+'" y2="'+y(0)+'"/>';
+  o+='<text x="'+(pl-6)+'" y="'+(y(0)+4)+'" text-anchor="end">0</text><text x="'+(pl-6)+'" y="'+(y(max)+4)+'" text-anchor="end">'+max+'</text><line class="ax" x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(max)+'" y2="'+y(max)+'" stroke-dasharray="2 4"/>';
+  days.forEach(function(d,i){var x=pl+i*step+(step-bw)/2,h=Math.max(d.imp>0?1.5:0,y(0)-y(d.imp));
+    o+='<rect class="bar-t" x="'+x+'" y="'+(y(0)-h)+'" width="'+bw+'" height="'+h+'"><title>'+esc(nice(d.d))+': '+d.imp+' impressions, '+d.eng+' engagements</title></rect>';
+    if(i%15===0)o+='<text x="'+(x+bw/2)+'" y="'+(H-8)+'" text-anchor="middle">'+esc(short(d.d))+'</text>'});
+  marks.forEach(function(mk){var i=idx[mk.d];if(i==null)return;var x=pl+i*step+step/2;
+    o+='<line x1="'+x+'" x2="'+x+'" y1="'+(pt-8)+'" y2="'+y(0)+'" stroke="'+(mk.k==='profile'?'var(--due)':'var(--fg)')+'" stroke-opacity=".28" stroke-dasharray="2 3"/>';
+    o+=mk.k==='profile'?'<path class="mt" d="M'+x+' '+(pt-18)+' l6 10 h-12z"><title>'+esc(mk.t)+'</title></path>':'<path class="mk" d="M'+x+' '+(pt-18)+' l5 5 l-5 5 l-5 -5z"><title>'+esc(mk.t)+'</title></path>'});
+  return o+'</svg>';
+}
+function viewLinkedIn(){
+  var L=S.li,T=today();
+  var imp='<div class="card" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;align-items:center"><div><h2 style="margin:0 0 4px">LinkedIn analytics</h2><div class="sub">'+
+    (L.summary?'Export covers '+esc(short(L.summary.from))+' to '+esc(short(L.summary.to))+', imported '+esc(L.summary.importedAt||'')+'.':'No export imported yet.')+
+    (L.summary&&L.summary.to&&(parse(T)-parse(L.summary.to))/864e5>7?' <span class="chip due">'+Math.round((parse(T)-parse(L.summary.to))/864e5)+' days old: export again</span>':'')+'</div></div>'+
+    '<label class="btn primary" style="cursor:pointer;display:inline-flex">Import LinkedIn export (.xlsx)<input type="file" id="li-file" accept=".xlsx" class="sr"></label></div>';
+  if(!L.summary||!L.daily.length)return imp+'<div class="empty"><b>Import your LinkedIn export to see analytics</b>In LinkedIn: Analytics, Content, Export. Choose the .xlsx file here. Nothing leaves this page: data stays in your browser.</div>'+signalsView();
+  var d=L.daily,sm=L.summary,last7=d.slice(-7),prev7=d.slice(-14,-7);
+  var s7=last7.reduce(function(a,x){return a+x.imp},0),p7=prev7.reduce(function(a,x){return a+x.imp},0);
+  var eng=d.reduce(function(a,x){return a+x.eng},0),imps=d.reduce(function(a,x){return a+x.imp},0),fg=d.reduce(function(a,x){return a+(x.fol||0)},0);
+  var delta=p7?Math.round((s7-p7)/p7*100):null;
+  var kp=function(v,l,x){return '<div class="kpi"><div class="v">'+v+'</div><div class="l">'+l+(x?'<br><span class="sub">'+x+'</span>':'')+'</div></div>'};
+  var kpis='<section class="kpis">'+kp(nf(sm.impressions||imps),'Impressions','in the export range')+kp(nf(sm.reached),'Members reached','')+kp(nf(sm.followers),'Followers','+'+fg+' in range')+
+    kp(pct1(eng,imps),'Engagement rate',nf(eng)+' engagements')+kp(nf(s7),'Impressions, last 7 days',delta==null?'':(delta>=0?'+':'')+delta+'% vs the 7 days before')+kp(L.posts.length,'Posts in the export','up to 50 are included')+'</section>';
+  var marks=[];L.posts.forEach(function(p){if(p.date)marks.push({d:p.date,k:'post',t:'Post: '+slugText(p.url)+' ('+nf(p.imp)+' impressions)'})});
+  S.signals.forEach(function(g){if(g.type==='Profile change')marks.push({d:g.date,k:'profile',t:'Profile change: '+(g.note||'')})});
+  var low=d.filter(function(x){return x.imp<15}).length,peak=d.slice().sort(function(a,b){return b.imp-a.imp})[0];
+  var chart='<section class="card"><h2>Daily impressions</h2>'+liChart(d,marks)+'<p class="sub" style="margin:6px 0 0">◆ a post. ▲ a profile change you logged. '+low+' of '+d.length+' days had under 15 impressions. Best day: '+esc(short(peak.d))+' with '+nf(peak.imp)+'.</p></section>';
+  /* audience */
+  var A=L.audience,aud='';
+  if(A){
+    var fm=audMetrics(A.followers),cm=audMetrics(A.content);
+    var row=function(i){var f=fm[i],c=cm[i];var bar=function(v,alt){return '<div class="pbar'+(alt?' alt':'')+'"><b>'+(v<1&&v>0?'<1':Math.round(v))+'%</b><span><i style="width:'+Math.min(100,v)+'%"></i></span></div>'};
+      return '<div><b>'+esc(f[0])+'</b><div class="sub">'+esc(f[2])+'</div></div>'+bar(f[1],false)+bar(c[1],true)};
+    var insight='';
+    if(fm[0][1]<cm[0][1])insight+='Your content reaches a more Madrid-heavy audience ('+Math.round(cm[0][1])+'%) than your followers ('+Math.round(fm[0][1])+'%). ';
+    var tt=(A.followers||[]).filter(function(x){return x.cat==='Job title'}).slice(0,3).map(function(x){return x.value+' '+(x.lt?'<1':x.pct)+'%'}).join(', ');
+    if(tt)insight+='Top follower titles: '+tt+'. ';
+    if(!fm[4][1]&&!cm[4][1])insight+='No ops, HR or IT titles appear in either top-10 title list. ';
+    var cats=['Location','Company size','Seniority','Job title','Industry'];
+    var det=cats.map(function(c){var fl=(A.followers||[]).filter(function(x){return x.cat===c}),cl=(A.content||[]).filter(function(x){return x.cat===c});
+      return '<details class="acct" style="margin-top:8px"><summary style="grid-template-columns:1fr auto"><b>'+esc(c)+'</b><span class="sub">top values</span></summary><div class="body"><div class="cmp"><div class="h">Value</div><div class="h">Followers</div><div class="h">Saw your content</div>'+
+        uniq(fl.concat(cl).map(function(x){return x.value})).map(function(v){var f=fl.filter(function(x){return x.value===v})[0],cc=cl.filter(function(x){return x.value===v})[0];
+          return '<div>'+esc(v)+'</div><div class="mono">'+(f?(f.lt?'<1':f.pct)+'%':'–')+'</div><div class="mono">'+(cc?(cc.lt?'<1':cc.pct)+'%':'–')+'</div>'}).join('')+'</div></div></details>'}).join('');
+    aud='<section class="card"><h2>Audience quality</h2><div class="cmp"><div class="h">Share of audience</div><div class="h">Your followers</div><div class="h">People who saw your content</div>'+[0,1,2,3,4].map(row).join('')+'</div>'+
+      '<p class="sub" style="margin:10px 0 0">'+esc(insight)+' LinkedIn lists only the top 10 values per category, so these shares are lower bounds. Values shown as "<1%" are counted as 0.5%.</p>'+det+'</section>';
+  }
+  /* posts */
+  var posts=L.posts.slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date))});
+  var sel=function(pid,k){var cur=(S.tags[pid]||{})[k]||'';return '<select class="tagsel" data-tag="'+k+'" data-pid="'+esc(pid)+'" aria-label="'+k+'">'+TAG_OPTS[k].map(function(o){return '<option value="'+esc(o)+'"'+(o===cur?' selected':'')+'>'+esc(o||'–')+'</option>'}).join('')+'</select>'};
+  var prow=posts.map(function(p){var pid=p.id||postId(p.url);
+    return '<tr><td>'+esc(short(p.date))+'</td><td class="snip">'+(safeLi(p.url)?'<a class="ext" target="_blank" rel="noopener" href="'+esc(p.url)+'">'+esc(slugText(p.url))+'</a>':esc(slugText(p.url)))+(p.type?' <span class="chip">'+esc(p.type)+'</span>':'')+'</td>'+
+      '<td>'+sel(pid,'lang')+'</td><td>'+sel(pid,'format')+'</td><td>'+sel(pid,'topic')+'</td><td class="mono">'+nf(p.imp)+'</td><td class="mono">'+(p.outNet!=null&&p.outNet!==''?esc(p.outNet)+'%':'–')+'</td><td class="mono">'+(p.eng!=null?nf(p.eng):'–')+'</td><td class="mono">'+(p.imp&&p.eng!=null?pct1(p.eng,p.imp):'–')+'</td><td class="mono">'+(p.fol!=null?p.fol:'–')+'</td><td class="mono">'+(p.viewers!=null?p.viewers:'–')+'</td></tr>'}).join('');
+  var groups=function(since){var o={ES:[],EN:[]};L.posts.forEach(function(p){var t=S.tags[p.id||postId(p.url)]||{};if((t.lang==='ES'||t.lang==='EN')&&(!since||p.date>=since))o[t.lang].push(p)});return o};
+  var statRow=function(label,g){return ['ES','EN'].map(function(k){var l=g[k],n=l.length,ai=n?Math.round(l.reduce(function(a,p){return a+p.imp},0)/n):0,ae=n?(l.reduce(function(a,p){return a+(p.eng||0)},0)/n).toFixed(1):'0';
+    return '<tr><td>'+esc(label)+'</td><td>'+k+'</td><td class="mono">'+n+'</td><td class="mono">'+(n?nf(ai):'–')+'</td><td class="mono">'+(n?ae:'–')+'</td></tr>'}).join('')};
+  var gt=groups(S.settings.ltStart),ga=groups('');
+  var test='<div style="margin-top:14px"><h3 style="font-size:14px;margin-bottom:6px">Spanish vs English test</h3><div class="tablewrap"><table><thead><tr><th>Window</th><th>Language</th><th>Posts</th><th>Avg impressions</th><th>Avg engagements</th></tr></thead><tbody>'+statRow('Test window (from '+short(S.settings.ltStart)+')',gt)+statRow('All posts in export',ga)+'</tbody></table></div>'+
+    '<div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap"><label style="display:flex;gap:8px;align-items:center;font-weight:500">Test starts <input type="date" data-set="ltStart" value="'+esc(S.settings.ltStart)+'" style="width:auto"></label><span class="sub">Tag each post\'s language and format. Judge after about 3 weeks and more than 3 posts per language. Languages were guessed from the post text: correct any that are wrong.</span></div></div>';
+  var posts_='<section class="card"><h2>Posts</h2><div class="tablewrap"><table><thead><tr><th>Date</th><th>Post</th><th>Lang</th><th>Format</th><th>Topic</th><th>Impr.</th><th>Out of network</th><th>Engag.</th><th>Eng. rate</th><th>Followers</th><th>Profile views</th></tr></thead><tbody>'+prow+'</tbody></table></div>'+test+'</section>';
+  /* own activity */
+  var days=[],dd=T;for(var k=0;k<14;k++){if(isBiz(dd))days.push(dd);dd=addDays(dd,-1)}
+  var act='<section class="card"><h2>Your LinkedIn activity</h2><div class="tablewrap"><table><thead><tr><th>Day</th><th>Posts</th><th>Comments</th><th>Floor</th></tr></thead><tbody>'+days.map(function(x){var r=S.daily[x]||{},p=Number(r.liPosts)||0,c=Number(r.liComments)||0;
+    return '<tr><td>'+esc(nice(x))+'</td><td class="mono">'+p+'</td><td class="mono">'+c+'</td><td>'+((p>=1||c>=3)?'<span class="chip ok">met</span>':(x===T?'<span class="chip">open</span>':'<span class="chip bad">missed</span>'))+'</td></tr>'}).join('')+'</tbody></table></div><p class="sub" style="margin:8px 0 0">Count them from the Today tab. Floor: 1 post or 3 meaningful comments a day.</p></section>';
+  return imp+kpis+chart+aud+'<div style="display:grid;gap:18px">'+posts_+signalsView()+act+'</div>';
+}
+function uniq(a){var s={},o=[];a.forEach(function(x){if(!s[x]){s[x]=1;o.push(x)}});return o}
+function signalsView(){
+  var T=today(),wk=weekStart(T),inb=S.signals.filter(function(g){return g.date>=wk&&(g.type==='Inbound DM'||g.type==='Connection request'||g.type==='Comment on my post'||g.type==='Meeting from LinkedIn')});
+  var fit=inb.filter(function(g){return g.fit==='Yes'}).length;
+  var rows=S.signals.slice(0,40).map(function(g){var ask=S.confirmSig===g._id;
+    return '<div class="ev" style="grid-template-columns:70px minmax(0,1fr) auto"><span class="t">'+esc(short(g.date))+'</span><div><div class="what"><span class="chip'+(g.fit==='Yes'?' ok':'')+'">'+esc(g.type)+'</span>'+(g.who?'<b>'+esc(g.who)+'</b>':'')+(g.fit==='Yes'?'<span class="chip ok">target role</span>':'')+'</div>'+(g.note?'<div class="note">'+esc(g.note)+'</div>':'')+'</div>'+
+      '<button type="button" class="btn ghost'+(ask?' danger':'')+'" data-act="'+(ask?'delSig':'askDelSig')+'" data-id="'+esc(g._id)+'">'+(ask?'Confirm remove':'Remove')+'</button></div>'}).join('');
+  return '<section class="card"><h2>Inbound signals</h2><p class="sub" style="margin:0 0 10px">The real test of the profile and posts: who writes to you, and who is a buyer. This week: <b class="mono">'+inb.length+'</b> inbound, <b class="mono">'+fit+'</b> from a target role (ops, HR, IT, COO, general manager).</p>'+
+    '<div class="sigform"><label>Date<input type="date" id="s-date" value="'+esc(T)+'"></label><label>Type<select id="s-type">'+SIG_TYPES.map(function(t){return '<option>'+esc(t)+'</option>'}).join('')+'</select></label>'+
+    '<label>Who or where<input type="text" id="s-who" placeholder="e.g. HR director, retailer"></label><label>Target role?<select id="s-fit"><option>Unsure</option><option>Yes</option><option>No</option></select></label>'+
+    '<label>Note<input type="text" id="s-note" placeholder="Optional"></label><button type="button" class="btn primary" data-act="addSig">Add</button></div>'+
+    '<div class="feed" style="margin-top:8px">'+(rows||'<div class="empty" style="margin-top:10px"><b>No signals yet</b>Log every DM, connection request from a target role and meeting that came from LinkedIn.</div>')+'</div></section>';
+}
+/* import a LinkedIn analytics export (.xlsx) */
+function parseExport(wb){
+  var X=window.XLSX,get=function(name){var k=wb.SheetNames.filter(function(n){return n.toUpperCase().indexOf(name)===0})[0];return k?X.utils.sheet_to_json(wb.Sheets[k],{header:1,raw:false,defval:''}):[]};
+  var disc=get('DISCOVERY'),eng=get('ENGAGEMENT'),fol=get('FOLLOWERS'),recent=get('MOST RECENT'),top=get('TOP POSTS'),ad=get('AUDIENCE'),cd=get('CONTENT');
+  var range=String((disc[0]||[])[1]||'').split(' - '),folDay={};
+  var total=0;fol.forEach(function(r,i){if(i===0)total=num(r[1]);else if(/^\d+\/\d+\/\d{4}$/.test(String(r[0])))folDay[mdyIso(r[0])]=num(r[1])});
+  var days=eng.filter(function(r){return /^\d+\/\d+\/\d{4}$/.test(String(r[0]))}).map(function(r){var d=mdyIso(r[0]);return {d:d,imp:num(r[1]),eng:num(r[2]),fol:folDay[d]||0}}).sort(function(a,b){return a.d<b.d?-1:1});
+  var by={};
+  top.forEach(function(r){if(r[4]&&/^https?:/.test(r[4])){var id=postId(r[4]);by[id]=Object.assign(by[id]||{id:id,url:r[4]},{date:mdyIso(r[5]),imp:num(r[6])})}
+    if(r[0]&&/^https?:/.test(r[0])){var i2=postId(r[0]);by[i2]=Object.assign(by[i2]||{id:i2,url:r[0],date:mdyIso(r[1])},{eng:num(r[2])})}});
+  recent.forEach(function(r){if(!/^https?:/.test(r[0]))return;var id=postId(r[0]);
+    by[id]=Object.assign(by[id]||{id:id,url:r[0]},{date:mdyIso(r[1]),type:r[2],imp:num(r[3]),inNet:num(r[4]),outNet:num(r[5]),reach:num(r[6]),views:num(r[7]),avgWatch:r[9]||'',fol:num(r[10]),viewers:num(r[11]),react:num(r[12]),comm:num(r[13]),repost:num(r[14]),saves:num(r[15]),sends:num(r[16])});
+    if(by[id].eng==null)by[id].eng=by[id].react+by[id].comm+by[id].repost+by[id].saves+by[id].sends});
+  var items=Object.keys(by).map(function(k){return by[k]}).filter(function(p){return p.id});
+  var dem=function(rows){return rows.slice(1).filter(function(r){return r[0]&&r[1]}).map(function(r){var p=String(r[2]),lt=/</.test(p);return {cat:r[0],value:r[1],pct:lt?0.5:num(p),lt:lt}})};
+  return {summary:{from:mdyIso(range[0]),to:mdyIso(range[1]),impressions:num((disc[1]||[])[1]),reached:num((disc[2]||[])[1]),followers:total,importedAt:today()},days:days,items:items,audience:{followers:dem(ad),content:dem(cd)}};
+}
+window.__parseExport=parseExport;
+async function importXlsx(file){
+  if(!window.XLSX){toast('The spreadsheet reader did not load. Check your connection and try again.','bad');return}
+  try{
+    var buf=await file.arrayBuffer(),wb=window.XLSX.read(buf,{type:'array'}),r=parseExport(wb);
+    if(!r.days.length||!r.summary.from){toast('This does not look like a LinkedIn analytics export.','bad');return}
+    await db.doc('linkedin/summary').set(r.summary);
+    await db.doc('linkedin/daily').set({days:r.days});
+    await db.doc('linkedin/posts').set({items:r.items});
+    await db.doc('linkedin/audience').set(r.audience);
+    toast('Imported '+r.days.length+' days and '+r.items.length+' posts ('+short(r.summary.from)+' to '+short(r.summary.to)+').','ok');
+  }catch(e){toast('Could not read that file.','bad')}
+}
+
+/* ---------- drawer & modal ---------- */
+function renderLayer(){
+  var L=$('#layer'),keep=L.querySelector('.dbody'),st=keep?keep.scrollTop:0,h='';
+  var c=S.openId?byId(S.openId):null;
+  if(c){
+    var hist=S.activity.filter(function(a){return a.contactId===c.id}),li=safeLi(c.li),co=comp(c.companyId);
+    h+='<div class="scrim" data-act="close"></div><aside class="drawer" role="dialog" aria-label="Contact '+esc(c.name)+'"><header><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><h2>'+esc(c.name)+'</h2><div class="sub">'+esc(c.title)+'</div></div><button type="button" class="btn ghost" data-act="close" id="closeBtn" aria-label="Close">Close</button></div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+segChip(c.seg)+'<span class="chip">'+esc(co?shortName(co.name):c.companyName)+'</span>'+(co?'<span class="chip">'+(co.tier===0?'Hub':'Tier '+co.tier)+'</span>':'')+'<span class="chip">P'+esc(c.priority)+'</span>'+(c.degree?'<span class="chip mono">'+esc(c.degree)+'</span>':'')+'<span class="chip">'+esc(c.origin)+'</span>'+dueChip(c)+
+      ' <a class="ext" target="_blank" rel="noopener" href="'+esc(li||liSearch(c))+'">'+(li?'Open LinkedIn ↗':'Find on LinkedIn ↗')+'</a></div></header><div class="dbody">'+
+      '<section><h3 style="font-size:14px;margin-bottom:8px">Log an action</h3><div class="evgrid">'+EVENTS.map(function(e){return '<button type="button" class="btn'+(e===primaryEvent(c)?' primary':'')+'" data-act="'+(e==='"No" received'?'no':'ev')+'" data-id="'+esc(c.id)+'" data-ev="'+esc(e)+'">'+esc(evLabel(e))+'</button>'}).join('')+'</div></section>'+
+      '<section><h3 style="font-size:14px;margin-bottom:8px">Details</h3><div class="fgrid">'+
+      '<label>Status<select data-f="status">'+STATUSES.map(function(s){return '<option'+(c.status===s?' selected':'')+'>'+esc(s)+'</option>'}).join('')+'</select></label>'+
+      '<label>Next action date<input type="date" data-f="nextDate" value="'+esc(c.nextDate||'')+'"></label>'+
+      '<label class="full">Next action<input type="text" data-f="nextAction" value="'+esc(c.nextAction||'')+'"></label>'+
+      '<label>Email<input type="text" data-f="email" value="'+esc(c.email||'')+'" placeholder="not found yet"></label>'+
+      '<label>Email status<select data-f="emailStatus">'+EMAIL_STATUS.map(function(s){return '<option'+(c.emailStatus===s?' selected':'')+'>'+esc(s)+'</option>'}).join('')+'</select></label>'+
+      '<label class="full">LinkedIn URL<input type="text" data-f="li" value="'+esc(c.li||'')+'" placeholder="https://www.linkedin.com/in/…"></label>'+
+      '<label class="full">Notes<textarea data-f="notes">'+esc(c.notes||'')+'</textarea></label>'+
+      (c.status==='Lost'||c.outcome?'<label class="full">Outcome / loss reason<input type="text" data-f="outcome" value="'+esc(c.outcome||'')+'"></label>':'')+'</div>'+
+      '<p class="sub" style="margin:8px 0 0">Source: '+esc(c.source)+(c.verified?' · checked '+esc(c.verified):'')+'. Titles can be out of date: check the profile before writing.</p></section>'+
+      '<section><h3 style="font-size:14px;margin-bottom:6px">History</h3>'+(hist.length?hist.map(function(a){return '<div class="ev" style="grid-template-columns:78px 1fr"><span class="t">'+esc(short(a.date))+'</span><div><span class="chip">'+esc(evLabel(a.event))+'</span>'+(a.note?' <span class="note">'+esc(a.note)+'</span>':'')+'</div></div>'}).join(''):'<p class="sub">No actions logged for this contact yet.</p>')+'</section></div></aside>';
+  }
+  if(S.modal){
+    var m=S.modal;
+    if(m.type==='no'){var mc=byId(m.id);h+='<div class="scrim" data-act="closeModal"></div><div class="modal" role="dialog" aria-label="Log a no"><h2 style="font-size:16px">Log a "No"'+(mc?' from '+esc(mc.name):'')+'</h2><p class="sub" style="margin:0">A "No" is a result. Pick the reason so you can see patterns later.</p>'+
+      REASONS.map(function(r){return '<button type="button" class="btn" data-act="noReason" data-r="'+esc(r)+'">'+esc(r)+'</button>'}).join('')+'<button type="button" class="btn ghost" data-act="closeModal">Cancel</button></div>'}
+    if(m.type==='add'){h+='<div class="scrim" data-act="closeModal"></div><div class="modal" role="dialog" aria-label="Add contact"><h2 style="font-size:16px">Add a contact</h2><div class="fgrid">'+
+      '<label class="full">Name<input type="text" id="a-name"></label><label class="full">Title<input type="text" id="a-title"></label>'+
+      '<label class="full">Account<select id="a-co">'+S.companies.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.seg+' · '+c.name)+'</option>'}).join('')+'</select></label>'+
+      '<label>Priority<select id="a-pr"><option>1</option><option selected>2</option><option>3</option></select></label><label>Origin<select id="a-or"><option>Cold</option><option>Warm</option><option>Intro</option></select></label>'+
+      '<label class="full">LinkedIn URL<input type="text" id="a-li"></label><label class="full">Notes<input type="text" id="a-no"></label></div>'+
+      '<div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" data-act="closeModal">Cancel</button><button type="button" class="btn primary" data-act="saveC">Add contact</button></div></div>'}
+  }
+  L.innerHTML=h;
+  var nb=L.querySelector('.dbody');if(nb)nb.scrollTop=st;
+}
+
+/* ---------- render loop ---------- */
+function render(){
+  var ae=document.activeElement;
+  if(ae&&ae!==document.body&&ae.matches&&ae.matches('input,textarea,select')&&$('#root').contains(ae)){S.pending=true;return}
+  S.pending=false;buildCounts();
+  var bd=$('.board'),sl=bd?bd.scrollLeft:0,sy=window.scrollY;
+  $('#app').innerHTML=shell();
+  var nb=$('.board');if(nb)nb.scrollLeft=sl;
+  renderLayer();
+}
+var raf=0;function sched(){if(raf)return;raf=requestAnimationFrame(function(){raf=0;render()})}
+
+/* ---------- events ---------- */
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-act]');if(!t)return;
+  var act=t.getAttribute('data-act'),id=t.getAttribute('data-id'),c=id?byId(id):null;
+  switch(act){
+    case 'tab':S.tab=t.getAttribute('data-v');try{history.replaceState(null,'','#'+S.tab)}catch(x){}render();break;
+    case 'seg':S.seg=t.getAttribute('data-v');render();break;
+    case 'accSeg':S.accSeg=t.getAttribute('data-v');render();break;
+    case 'accTier':S.accTier=t.getAttribute('data-v');render();break;
+    case 'logSeg':S.logSeg=t.getAttribute('data-v');render();break;
+    case 'open':if(c){S.openId=id;render();var cb=$('#closeBtn');if(cb)cb.focus()}break;
+    case 'close':S.openId=null;render();break;
+    case 'closeModal':S.modal=null;render();break;
+    case 'ev':if(c)logAction(c,t.getAttribute('data-ev'));break;
+    case 'no':if(c){S.modal={type:'no',id:id};render()}break;
+    case 'noReason':if(S.modal&&byId(S.modal.id)){var mc=byId(S.modal.id);S.modal=null;render();logAction(mc,'"No" received',{note:t.getAttribute('data-r')})}break;
+    case 'snooze':if(c)snooze(c);break;
+    case 'undo':if(S.undo){var f=S.undo;S.undo=null;$('#toast').innerHTML='';f()}break;
+    case 'addC':S.modal={type:'add'};render();break;
+    case 'saveC':{var nm=$('#a-name').value.trim();if(!nm){toast('Add a name first.','bad');break}
+      addContact({name:nm,title:$('#a-title').value.trim(),companyId:$('#a-co').value,priority:$('#a-pr').value,origin:$('#a-or').value,li:$('#a-li').value.trim(),notes:$('#a-no').value.trim()});break}
+    case 'addLog':{var dd=$('#l-date').value,cid=$('#l-c').value,ev=$('#l-e').value;if(!dd||!cid){toast('Pick a date and a contact.','bad');break}
+      addManual({date:dd,cid:cid,ev:ev,note:$('#l-n').value.trim()});$('#l-n').value='';break}
+    case 'askDel':S.confirmDel=id;render();break;
+    case 'delAct':S.confirmDel=null;delActivity(id);break;
+    case 'export':exportCsv();break;
+    case 'liInc':liInc(t.getAttribute('data-k'),Number(t.getAttribute('data-d')));break;
+    case 'addSig':{var sd=$('#s-date').value,sw=$('#s-who').value.trim(),sn=$('#s-note').value.trim();if(!sd){toast('Pick a date.','bad');break}
+      addSignal({date:sd,type:$('#s-type').value,who:sw,fit:$('#s-fit').value,note:sn});$('#s-who').value='';$('#s-note').value='';break}
+    case 'askDelSig':S.confirmSig=id;render();break;
+    case 'delSig':S.confirmSig=null;delSignal(id);break;
+  }
+});
+document.addEventListener('change',function(e){
+  var t=e.target;
+  if(t.hasAttribute('data-f')&&S.openId){var k=t.getAttribute('data-f'),v=t.value;
+    if(k==='status')setStatus(S.openId,v);else if(k==='li'){setField(S.openId,k,safeLi(v.trim())||v.trim())}
+    else setField(S.openId,k,k==='nextDate'?(v||null):v)}
+  else if(t.hasAttribute('data-daily'))saveDaily(t.getAttribute('data-daily'),t.type==='number'?Number(t.value):t.value);
+  else if(t.hasAttribute('data-set'))saveSetting(t.getAttribute('data-set'),t.value);
+  else if(t.hasAttribute('data-tag'))saveTag(t.getAttribute('data-pid'),t.getAttribute('data-tag'),t.value);
+  else if(t.id==='li-file'){if(t.files&&t.files[0])importXlsx(t.files[0]);t.value=''}
+  else if(t.id==='l-f'){S.logEv=t.value;t.blur();render()}
+});
+document.addEventListener('input',function(e){
+  if(e.target.id==='q'){S.q=e.target.value;var pb=$('#pipeBody');if(pb)pb.innerHTML=boardHTML()}
+});
+document.addEventListener('focusout',function(){setTimeout(function(){if(S.pending)render()},60)});
+document.addEventListener('toggle',function(e){var d=e.target;if(d&&d.classList&&d.classList.contains('acct')){S.openAcct[d.getAttribute('data-aid')]=d.open}},true);
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){if(S.modal){S.modal=null;render()}else if(S.openId){S.openId=null;render()}}});
+document.addEventListener('dragstart',function(e){var k=e.target.closest&&e.target.closest('.kcard');if(k){e.dataTransfer.setData('text/plain',k.getAttribute('data-id'));e.dataTransfer.effectAllowed='move'}});
+document.addEventListener('dragover',function(e){var col=e.target.closest&&e.target.closest('.col');if(col){e.preventDefault();col.classList.add('over')}});
+document.addEventListener('dragleave',function(e){var col=e.target.closest&&e.target.closest('.col');if(col)col.classList.remove('over')});
+document.addEventListener('drop',function(e){var col=e.target.closest&&e.target.closest('.col');if(!col)return;e.preventDefault();col.classList.remove('over');
+  var id=e.dataTransfer.getData('text/plain'),c=byId(id),st=col.getAttribute('data-status');if(c&&st&&c.status!==st)setStatus(id,st)});
+window.addEventListener('hashchange',function(){var h=location.hash.slice(1);if(['today','pipeline','accounts','log','scorecard','linkedin'].indexOf(h)>-1){S.tab=h;render()}});
+
+async function exportCsv(){
+  if(!S.dl)return;
+  var cols=['id','companyName','seg','name','title','role','priority','li','degree','email','emailStatus','origin','status','connectDate','msgDate','emailDate','nextAction','nextDate','replied','notes','outcome'];
+  var q=function(v){v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  var csv=cols.join(',')+'\n'+S.contacts.map(function(c){return cols.map(function(k){return q(c[k])}).join(',')}).join('\n');
+  try{await S.dl.save({filename:'outreach-desk-contacts-'+today()+'.csv',data:csv})}catch(e){if(e&&e.code!=='declined')toast('Could not save the file here.','bad')}
+}
+
+/* ---------- boot ---------- */
+function fail(){S.slow=true;sched()}
+function ready(k){S.loaded[k]=true;sched()}
+async function boot(){
+  var h=location.hash.slice(1);if(['today','pipeline','accounts','log','scorecard','linkedin'].indexOf(h)>-1)S.tab=h;
+  render();
+  var timer=setTimeout(function(){if(!S.loaded.contacts){S.slow=true;sched()}},10000);
+  try{db=window.host&&await window.host.use('db')}catch(e){db=null}
+  if(!db){clearTimeout(timer);S.noDb=true;sched();return}
+  try{S.dl=await window.host.use('downloads')}catch(e){S.dl=null}
+  db.collection('contacts').onSnapshot(function(snap){S.contacts=snap.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});clearTimeout(timer);ready('contacts')},fail);
+  db.collection('activity').orderBy('ts','desc').limit(1000).onSnapshot(function(snap){S.activity=snap.docs.map(function(d){return Object.assign({},d.data(),{_id:d.id})});ready('activity')},fail);
+  db.doc('companies/all').onSnapshot(function(s){S.companies=s.exists?((s.data()||{}).items||[]):[];ready('companies')},fail);
+  db.doc('settings/targets').onSnapshot(function(s){if(s.exists)S.settings=Object.assign({},S.settings,s.data());ready('settings')},fail);
+  db.collection('daily').onSnapshot(function(snap){var m={};snap.docs.forEach(function(d){m[d.id]=d.data()});S.daily=m;ready('daily')},fail);
+  db.doc('linkedin/summary').onSnapshot(function(s){S.li.summary=s.exists?s.data():null;sched()},fail);
+  db.doc('linkedin/daily').onSnapshot(function(s){S.li.daily=s.exists?((s.data()||{}).days||[]):[];sched()},fail);
+  db.doc('linkedin/posts').onSnapshot(function(s){S.li.posts=s.exists?((s.data()||{}).items||[]):[];sched()},fail);
+  db.doc('linkedin/audience').onSnapshot(function(s){S.li.audience=s.exists?s.data():null;sched()},fail);
+  db.collection('postTags').onSnapshot(function(snap){var m={};snap.docs.forEach(function(d){m[d.id]=d.data()});S.tags=m;sched()},fail);
+  db.collection('signals').orderBy('ts','desc').limit(300).onSnapshot(function(snap){S.signals=snap.docs.map(function(d){return Object.assign({},d.data(),{_id:d.id})});sched()},fail);
+}
+boot();
+})();
+</script>

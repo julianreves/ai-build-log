@@ -1,0 +1,24 @@
+{
+ "_note": "Vocabulary hint passed to whisper (initial_prompt). Add names/terms it mishears. Keep it short (<~40 terms).",
+ "terms": [
+  "Anthropic",
+  "Claude",
+  "OpenAI",
+  "ChatGPT",
+  "GPT-4",
+  "GPT-5",
+  "Codex",
+  "Gemini",
+  "DeepMind",
+  "LLM",
+  "AGI",
+  "sycophancy",
+  "NVIDIA",
+  "Mistral",
+  "Copilot",
+  "agentic",
+  "RLHF",
+  "fine-tuning",
+  "Shopify"
+ ]
+}

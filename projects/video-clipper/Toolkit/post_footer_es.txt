@@ -1,0 +1,3 @@
+----------------
+
+Párrafo de cierre corto con tu llamada a la acción. `clip footer <carpeta>` lo agrega a cada Post_ES.txt.

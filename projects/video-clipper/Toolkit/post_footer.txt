@@ -1,0 +1,3 @@
+----------------
+
+Short closing paragraph with your call to action goes here. `clip footer <folder>` appends this file to every Post.txt.
