@@ -118,11 +118,6 @@ As of November 2026:
 | Registries created | **53** |
 | Total value processed | **about MXN 3.5 million** |
 
-## What I would do differently *(draft: edit to your own view)*
-
-- Reconcile the migration history with the ORM's journal from day one, so the safe path and the default path are the same path.
-- Put analytics events in the first spec, not in a clean-up after launch.
-- Add an automated test around the payment and withdrawal flow before adding any feature next to it.
 
 ## Licence
 
