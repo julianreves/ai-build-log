@@ -12,7 +12,8 @@ Both are business school assignments, built on public data. Open the HTML files 
 
 | | |
 |---|---|
-| **[Argument deck](examples/china-iran-war-argument-deck.html)**: 9 slides, four speakers, English. A thesis is shown, struck through and replaced; the strongest objection is stated at its strongest and answered; a recurring visual (a ledger that gains a block per section and finally tips) resolves in the close. | ![Argument deck: thesis slide](screenshots/china-1-thesis.png) |
+| **[Argument deck](examples/china-iran-war-argument-deck.html)**: 9 slides, four speakers, English. A thesis is shown, struck through and replaced; the strongest objection is stated at its strongest and answered; a recurring visual (a ledger that gains a block per section and finally tips) resolves in the close. Here, *The Empty Ocean*: a live counter, a map and a four-column comparison on one slide. | ![Argument deck: The Empty Ocean](screenshots/china-3-empty-ocean.png) |
+| | ![Argument deck: thesis slide](screenshots/china-1-thesis.png) |
 | **The same deck, mid-talk.** Charts, maps and the ledger are inline SVG/CSS in the deck's own type and colours, with one idea revealed per step. | ![Ledger scale slide](screenshots/china-4-ledger.png) |
 | | ![Strongest objection slide](screenshots/china-6-objection.png) |
 | **[Scroll article](examples/nubank-scroll-article.html)**: a magazine-style page instead of slides, with sticky graphics, sliders and a phone demo, in the colours of the company it analyses. | ![Scroll article: cover](screenshots/nubank-1-top.png) |

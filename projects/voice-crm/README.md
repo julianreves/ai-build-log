@@ -1,6 +1,8 @@
 # Personal Voice CRM
 
-![Personal Voice CRM](../../docs/cards/crm.png)
+![A voice note in Telegram becomes a row in Google Sheets](screenshots/telegram-to-sheets.png)
+
+<sub>Illustrative mock-up with fictional contacts: the bot confirms each capture in Telegram, and the row appears in the Google Sheet. Telegram and Google Sheets are trademarks of their owners.</sub>
 
 A low-friction personal CRM: you capture a contact by sending a **voice note** to a private Telegram bot, and a self-hosted **n8n** workflow transcribes it, extracts structured fields with an LLM, stores a row in **Google Sheets**, and replies with a confirmation.
 

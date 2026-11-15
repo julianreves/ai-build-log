@@ -4,7 +4,7 @@
 
 **The source code is private and is not part of this repository.** This is a case study: product, architecture, process and results. The screenshots come from public pages: the marketing site and a demonstration registry, with no customer data.
 
-![Kadou Planner landing page](screenshots/planner-1-landing-hero.png)
+![Kadou homepage](screenshots/homepage-hero.png)
 
 ## The problem
 

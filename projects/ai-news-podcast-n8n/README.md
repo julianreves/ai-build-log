@@ -1,6 +1,8 @@
 # AI News Podcast | n8n + DeepSeek + Kokoro + Telegram
 
-![AI News Podcast](../../docs/cards/podcast.png)
+<img src="docs/img/telegram-briefing.png" alt="The daily briefing as it arrives on Telegram" width="480">
+
+<sub>Illustrative mock-up of the daily delivery: an index message with the five sections, then the voice note. Telegram is a trademark of its owner.</sub>
 
 > **Self-hosted AI news intelligence pipeline** that curates, analyzes, scripts, and narrates daily news covering Mexico, Spain, AI, geopolitics, and business.
 

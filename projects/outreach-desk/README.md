@@ -4,7 +4,7 @@ A single-page **daily outreach tracker and coach for a solo seller**. It answers
 
 It is one HTML file of vanilla JavaScript (~800 lines, no build step). **The data in this repository is fictional**; the author's real pipeline is not included.
 
-![Today view: outreach progress against a daily target, a coach line, and the contacts due today with one-click actions](screenshots/01-today.png)
+![Today view: outreach progress against a daily target, a coach line, and the contacts due today with one-click actions](screenshots/09-today-light.png)
 
 ## Try it
 
