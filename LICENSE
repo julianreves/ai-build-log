@@ -21,12 +21,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ---
-This MIT licence covers everything in this repository EXCEPT the parts that
-carry their own licence file:
+This MIT licence covers everything in this repository EXCEPT the folder that
+carries its own licence file:
 
   projects/kadou-case-study/        All rights reserved (see its LICENSE)
-  projects/presentations-creator/examples/ and .../screenshots/
-                                    CC BY 4.0 (see LICENSE-CC-BY-4.0.txt there)
 
 Third-party names, logos and data that appear in the material belong to their
 respective owners and are not licensed by this file.
